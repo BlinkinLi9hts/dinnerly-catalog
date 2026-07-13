@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Dinnerly Recipe Catalog v1.6</title>
+<title>Dinnerly Recipe Catalog v1.7</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -247,7 +247,7 @@ function ApiKeyScreen({ onSaved }) {
       <div style={{background:C.card, borderRadius:16, padding:32, maxWidth:480, width:"100%", boxShadow:"0 4px 32px rgba(0,0,0,0.08)"}}>
         <div style={{fontSize:28, fontWeight:700, color:C.sage, marginBottom:6}}>Dinnerly</div>
         <div style={{fontSize:14, color:C.muted, marginBottom:4}}>Recipe Catalog — first-time setup</div>
-        <div style={{fontSize:11, color:C.muted, marginBottom:24, letterSpacing:1}}>v1.6</div>
+        <div style={{fontSize:11, color:C.muted, marginBottom:24, letterSpacing:1}}>v1.7</div>
         <div style={{fontSize:15, fontWeight:700, marginBottom:8}}>Enter your Anthropic API key</div>
         <div style={{fontSize:13, color:C.muted, marginBottom:16, lineHeight:1.5}}>
           Get one free at <strong>console.anthropic.com</strong> → API Keys. Stored only on this device.
@@ -554,7 +554,7 @@ function IngredientChecklist({ ingredients, onDone }) {
   );
 }
 
-function DetailScreen({ recipe, onBack, onCook }) {
+function DetailScreen({ recipe, onBack, onCook, onUpdatePhoto }) {
   const [guestCount, setGuestCount] = useState(recipe.servings);
   const [scaledIng, setScaledIng]   = useState(recipe.ingredients);
   const [scaling, setScaling]       = useState(false);
@@ -562,7 +562,16 @@ function DetailScreen({ recipe, onBack, onCook }) {
   const [question, setQuestion]     = useState("");
   const [asking, setAsking]         = useState(false);
   const [showChecklist, setShowChecklist] = useState(false);
+  const [photoHover, setPhotoHover] = useState(false);
+  const photoInputRef = useRef();
   const chatRef = useRef();
+
+  const handlePhotoChange = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => onUpdatePhoto(recipe.id, e.target.result);
+    reader.readAsDataURL(file);
+  };
 
   const handleScale = count => { setGuestCount(count); setScaling(true); setScaledIng(scaleIngredients(recipe,count)); setScaling(false); };
   const handleAsk = async () => {
@@ -581,13 +590,33 @@ function DetailScreen({ recipe, onBack, onCook }) {
     <div style={{...base,minHeight:"100vh",background:C.paper}}>
       <TopBar onBack={onBack} title={recipe.title}
         right={<button onClick={()=>setShowChecklist(true)} style={{...btnP,background:C.orange,padding:"8px 18px",fontSize:14}}>Cook →</button>}/>
-      {recipe.frontImage && (
-        <div style={{height:220,overflow:"hidden",position:"relative",background:"#1a1a1a"}}>
-          <img src={recipe.frontImage} alt={recipe.title} style={{width:"100%",height:"100%",objectFit:"contain"}}/>
-          <div style={{position:"absolute",inset:0,background:"linear-gradient(to top,rgba(0,0,0,0.5) 0%,transparent 60%)"}}/>
-          <div style={{position:"absolute",bottom:16,left:24,color:"#fff",fontSize:11,opacity:0.8,letterSpacing:1,textTransform:"uppercase"}}>{recipe.totalTime}</div>
+      <div
+        style={{height:220,overflow:"hidden",position:"relative",background:"#1a1a1a",cursor:"pointer"}}
+        onMouseEnter={()=>setPhotoHover(true)}
+        onMouseLeave={()=>setPhotoHover(false)}
+        onClick={()=>photoInputRef.current.click()}
+      >
+        {recipe.frontImage
+          ? <img src={recipe.frontImage} alt={recipe.title} style={{width:"100%",height:"100%",objectFit:"contain"}}/>
+          : <div style={{height:"100%",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:8}}>
+              <span style={{fontSize:40}}>📷</span>
+              <span style={{color:"rgba(255,255,255,0.5)",fontSize:14}}>Tap to add a photo</span>
+            </div>
+        }
+        <div style={{position:"absolute",inset:0,background:"linear-gradient(to top,rgba(0,0,0,0.5) 0%,transparent 60%)"}}/>
+        {recipe.totalTime && <div style={{position:"absolute",bottom:16,left:24,color:"#fff",fontSize:11,opacity:0.8,letterSpacing:1,textTransform:"uppercase"}}>{recipe.totalTime}</div>}
+        {/* Edit overlay */}
+        <div style={{position:"absolute",top:12,right:12,display:"flex",gap:8,opacity:photoHover?1:0,transition:"opacity 0.2s"}}>
+          <label onClick={e=>e.stopPropagation()} style={{background:"rgba(0,0,0,0.6)",color:"#fff",borderRadius:8,padding:"6px 12px",fontSize:13,fontWeight:600,cursor:"pointer",backdropFilter:"blur(4px)"}}>
+            📷 Replace photo
+            <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{ if(e.target.files?.[0]) handlePhotoChange(e.target.files[0]); }}/>
+          </label>
+          {recipe.frontImage && <button onClick={e=>{e.stopPropagation();onUpdatePhoto(recipe.id,null);}} style={{background:"rgba(0,0,0,0.6)",color:"#fff",border:"none",borderRadius:8,padding:"6px 12px",fontSize:13,fontWeight:600,cursor:"pointer",backdropFilter:"blur(4px)"}}>
+            🗑 Remove
+          </button>}
         </div>
-      )}
+        <input ref={photoInputRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{ if(e.target.files?.[0]) handlePhotoChange(e.target.files[0]); }}/>
+      </div>
       <div style={{maxWidth:800,margin:"0 auto",padding:"28px 24px"}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
           <div>
@@ -829,8 +858,15 @@ function App() {
 
   if (!hasKey || showSettings) return <ApiKeyScreen onSaved={()=>{ setHasKey(true); setShowSettings(false); }}/>;
   if (screen==="scan") return <ScanScreen onBack={()=>setScreen("library")} onSaved={handleSaved}/>;
+  const handleUpdatePhoto = (id, newImage) => {
+    const next = recipes.map(r => r.id===id ? {...r, frontImage:newImage} : r);
+    setRecipes(next); saveRecipes(next);
+    if (active?.recipe?.id===id) setActive(prev => ({...prev, recipe:{...prev.recipe, frontImage:newImage}}));
+  };
+
   if (screen==="detail"&&active?.recipe) return (
     <DetailScreen recipe={active.recipe} onBack={()=>setScreen("library")}
+      onUpdatePhoto={handleUpdatePhoto}
       onCook={(recipe,guestCount,scaledIngredients)=>{ setActive({recipe,guestCount,scaledIngredients}); setScreen("cook"); }}/>
   );
   if (screen==="cook"&&active?.recipe) return (
