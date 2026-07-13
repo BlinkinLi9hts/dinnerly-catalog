@@ -378,7 +378,7 @@ function TopBar({onBack,title,right,dark}) {
   );
 }
 
-function HomeScreen({recipes,schedule,onCatalog,onPlanner,onShopping,onFavorites,onAdd,onSettings}) {
+function HomeScreen({recipes,schedule,onCatalog,onPlanner,onShopping,onFavorites,onAdd,onSettings,onBattle}) {
   const assignedCount=Object.values(schedule).filter(Boolean).length;
   const favCount=recipes.filter(r=>r.favorite).length;
   return (
