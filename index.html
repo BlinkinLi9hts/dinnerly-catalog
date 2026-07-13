@@ -1148,8 +1148,9 @@ function ShoppingListScreen({recipes,schedule,onBack}) {
   const checkedCount=Object.values(checked).filter(Boolean).length;
   const assignedDays=DAYS.filter(d=>schedule[d.key]);
 
-  const ItemRow=({item,onDel})=>{
+  const ItemRow=({item,onDel,rowBg})=>{
     const done=!!checked[item._key];
+    const bg=done?"#F0F8F2":(rowBg||C.card);
     return (
       <div onClick={e=>e.stopPropagation()} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:`1px solid ${C.border}`,background:done?"#F8FAF8":C.card}}>
         {delMode&&item._manual
