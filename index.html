@@ -1150,9 +1150,9 @@ function ShoppingListScreen({recipes,schedule,onBack}) {
       <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:`1px solid ${C.border}`,background:done?"#F8FAF8":C.card}}>
         {delMode&&item._manual
           ?<button onClick={()=>onDel(item._manualId)} style={{width:28,height:28,borderRadius:7,flexShrink:0,background:"#fee2e2",border:"none",color:"#b03020",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>×</button>
-          :<div onClick={()=>toggle(item._key)} style={{width:28,height:28,borderRadius:7,flexShrink:0,border:done?"none":`2px solid ${C.border}`,background:done?C.sage:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.18s",cursor:"pointer"}}>{done&&<span style={{color:"#fff",fontSize:16,lineHeight:1}}>&checkmark;</span>}</div>
+          :<div onClick={e=>{e.stopPropagation();toggle(item._key);}} style={{width:28,height:28,borderRadius:7,flexShrink:0,border:done?"none":`2px solid ${C.border}`,background:done?C.sage:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.18s",cursor:"pointer"}}>{done&&<span style={{color:"#fff",fontSize:16,lineHeight:1}}>&checkmark;</span>}</div>
         }
-        <div style={{flex:1,cursor:delMode?"default":"pointer"}} onClick={()=>!delMode&&toggle(item._key)}>
+        <div style={{flex:1,cursor:delMode?"default":"pointer"}} onClick={e=>{e.stopPropagation();if(!delMode)toggle(item._key);}}>
           <div style={{fontSize:16,color:done&&!delMode?C.muted:C.ink,textDecoration:done&&!delMode?"line-through":"none"}}>{item.display}</div>
           {item.recipes&&item.recipes.length>1&&<div style={{fontSize:11,color:C.muted,marginTop:2}}>Used in {item.recipes.length} recipes</div>}
           {item._manual&&<span style={{fontSize:10,color:C.plum,background:"rgba(91,62,140,0.1)",borderRadius:8,padding:"1px 6px",marginLeft:6}}>custom</span>}
