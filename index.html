@@ -1243,6 +1243,31 @@ function DetailScreen({recipe,onBack,onCook,onUpdatePhoto,onUpdateCategory,onTog
         </div>
         <input ref={photoInputRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{if(e.target.files?.[0])handlePhotoChange(e.target.files[0]);}}/>
       </div>
+      {recipe.nutrition&&(()=>{
+        const n=recipe.nutrition; const r=ratio;
+        const scaleNum=v=>{
+          const num=parseFloat(String(v).replace(/[^0-9.]/g,""));
+          if(isNaN(num)) return v;
+          const scaled=Math.round(num*r);
+          return String(v).replace(/[0-9]+/,scaled);
+        };
+        const stats=[
+          {label:"Calories",value:scaleNum(n.calories),unit:""},
+          {label:"Protein",value:scaleNum(n.protein),unit:""},
+          {label:"Carbs",value:scaleNum(n.carbs),unit:""},
+          {label:"Fat",value:scaleNum(n.fat),unit:""},
+        ];
+        return (
+          <div style={{background:"#1a1a1a",borderTop:"1px solid rgba(255,255,255,0.06)",display:"flex"}}>
+            {stats.map((s,i)=>(
+              <div key={i} style={{flex:1,textAlign:"center",padding:"10px 4px",borderRight:i<3?"1px solid rgba(255,255,255,0.06)":"none"}}>
+                <div style={{fontSize:15,fontWeight:700,color:"#fff",lineHeight:1}}>{s.value}</div>
+                <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:3,letterSpacing:0.5,textTransform:"uppercase"}}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
       <div style={{maxWidth:800,margin:"0 auto",padding:"28px 24px"}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
           <div>
