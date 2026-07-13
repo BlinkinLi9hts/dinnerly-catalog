@@ -502,7 +502,7 @@ function RecipeListScreen({recipes,categoryId,onBack,onSelect,onDelete,onAdd}) {
 
       <div style={{flex:1,display:"flex",overflow:"hidden",position:"relative"}}>
         <div ref={scrollRef} style={{flex:1,overflowY:"auto",padding:"16px 16px 32px",WebkitOverflowScrolling:"touch"}}>
-          <div style={{maxWidth:900,margin:"0 auto",paddingRight:letters.length>=5?30:0}}>
+          <div style={{maxWidth:900,margin:"0 auto"}}>
             {groups.map(([letter,recs])=>(
               <div key={letter} ref={el=>sectionRefs.current[letter]=el} style={{marginBottom:24}}>
                 <div style={{
@@ -516,7 +516,7 @@ function RecipeListScreen({recipes,categoryId,onBack,onSelect,onDelete,onAdd}) {
                 }}>
                   {letter} <span style={{fontWeight:400}}>— {recs.length}</span>
                 </div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:16}}>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:16}}>
                   {recs.map(r=><LibraryCard key={r.id} recipe={r} onSelect={()=>onSelect(r)} onDelete={()=>onDelete(r.id)}/>)}
                 </div>
               </div>
