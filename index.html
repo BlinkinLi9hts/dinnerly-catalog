@@ -462,7 +462,29 @@ function CategoryScreen({recipes,onSelectCategory,onBack,onAdd}) {
   );
 }
 
-function RecipeListScreen({recipes,categoryId,onBack,onSelect,onDelete,onAdd}) {
+function FavoritesScreen({recipes,onBack,onSelect,onDelete,onToggleFavorite}) {
+  const favs=recipes.filter(r=>r.favorite);
+  return (
+    <div style={{...base,minHeight:"100vh",background:C.paper}}>
+      <TopBar onBack={onBack} title="Favorites"/>
+      <div style={{maxWidth:900,margin:"0 auto",padding:"24px 24px"}}>
+        {favs.length===0?(
+          <div style={{textAlign:"center",padding:"80px 0",color:C.muted}}>
+            <div style={{fontSize:52,marginBottom:16}}>🤍</div>
+            <div style={{fontSize:20,fontWeight:700,color:C.ink,marginBottom:8}}>No favorites yet</div>
+            <div style={{fontSize:14}}>Tap the heart on any recipe card to save it here.</div>
+          </div>
+        ):(
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:16}}>
+            {favs.map(r=><LibraryCard key={r.id} recipe={r} onSelect={()=>onSelect(r)} onDelete={()=>onDelete(r.id)} onToggleFavorite={onToggleFavorite}/>)}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RecipeListScreen({recipes,categoryId,onBack,onSelect,onDelete,onAdd,onToggleFavorite}) {
   const cat=getCategoryInfo(categoryId);
   const filtered=useMemo(()=>
     recipes.filter(r=>detectCategory(r.title,r.category)===categoryId)
