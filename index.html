@@ -258,7 +258,7 @@ function useChecklistVoice({active,ingredients,checked,onCheck,onGotAll,onHeard}
         if(ni!==-1){onCheck(ni,true);const rem=ingredients.filter((_,i)=>i!==ni&&!checked[i]);rem.length===0?speak("That's everything! Say ready to cook."):speak("Got it. "+rem.length+" left. Next: "+(rem[0].display||rem[0].name)+".");}
         return;
       }
-      const mi=ingredients.findIndex((ing,i)=>!checked[i]&&(ing.name||"").toLowerCase().split(/\s+/).some(w=>w.length>3&&t.includes(w)));
+      const mi=ingredients.findIndex((ing,i)=>!checked[i]&&(ing.name||"").toLowerCase().split(/\s+/).some(w=>w.length>2&&t.includes(w)));
       if(mi!==-1){onCheck(mi,true);const rem=ingredients.filter((_,i)=>i!==mi&&!checked[i]);speak(rem.length===0?"That's the last one!":"Got it. "+rem.length+" left.");}
     };
     rec.onend=()=>{if(active)try{rec.start();}catch{}};
