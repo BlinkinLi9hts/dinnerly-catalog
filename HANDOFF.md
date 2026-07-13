@@ -11,7 +11,7 @@ A personal recipe catalog app for Brian's physical Dinnerly recipe card collecti
 **Live URL:** https://dinnerly-catalog.pages.dev
 **Repo:** https://github.com/BlinkinLi9hts/dinnerly-catalog
 **Local file:** C:\Projects\dinnerly-catalog\index.html
-**Current version:** v2.13 (live — aisle-grouped shopping list)
+**Current version:** v2.13 (live — aisle-grouped shopping list; tap-to-check back-nav bug fixed)
 
 ---
 
