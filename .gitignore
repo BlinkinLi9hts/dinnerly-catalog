@@ -1,2 +1,4 @@
 dinnerly-watch.ps1
+start-watcher.vbs
 *.ps1
+*.vbs
