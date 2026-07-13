@@ -11,7 +11,7 @@ A personal recipe catalog app for Brian's physical Dinnerly recipe card collecti
 **Live URL:** https://dinnerly-catalog.pages.dev
 **Repo:** https://github.com/BlinkinLi9hts/dinnerly-catalog
 **Local file:** C:\Projects\dinnerly-catalog\index.html
-**Current version:** v2.5
+**Current version:** v2.7 (pending — rewrite in progress via Cowork)
 
 ---
 
@@ -97,14 +97,15 @@ POST /api/schedule  → saves schedule object to KV (requires X-Dinnerly-Secret 
 - **Save status toast** bottom-right: "Saving..." → "Saved" / "Save failed" (2.5s auto-dismiss)
 - Both Brian and wife see same recipes and weekly plan from any device
 
-### Scan Flow (4 taps — fast batch scanning mode)
-1. Tap "Scan" → camera auto-opens for **front** card (300ms delay for browser gesture)
+## Scan Flow (v2.7 target — simple, no viewfinder)
+1. Tap "Scan" → camera auto-opens for **front** card
 2. Take photo → **CropModal** opens (pinch/drag, 16:9 frame, canvas-based)
 3. Tap "Use Photo" → camera auto-opens for **back** card
-4. Take photo → "Reading both sides..." → review screen → Save
-- Manual "Open Camera" fallback button shown if auto-open doesn't fire
+4. Take photo → "Reading both sides..." → ReviewForm → Save
+- "Retake" in CropModal → back to front camera
 - Back photo: no crop (text only, no display value)
 - Front image: cropped version stored, 1200×675 JPEG at 0.82 quality
+- **No ViewfinderCapture / getUserMedia** — file inputs only
 
 ### CropModal
 - Canvas-based, full-screen black overlay
@@ -206,9 +207,10 @@ C = { ink:"#1C1C1E", paper:"#F5F2ED", card:"#FFFFFF", sage:"#4A7C59",
 | 2 | Secret screen → verify it correctly validates and saves on both devices | ✅ Fixed in v2.3 |
 | 3 | Migration flow — needs test: local recipes → "Upload to Cloud" → verify cloud has them | 🔧 Pending (KV was wiped; test once cards are scanned) |
 | 4 | Photo Replace/Remove overlay uses hover opacity — may be invisible on first touch on tablet | 🔧 Pending touch test |
-| 5 | Voice checklist "got that one" / "what's left" — needs re-test on tablet after v2.2 | 🔧 Pending |
+| 5 | Voice checklist "got that one" / "what's left" — needs re-test on tablet after rewrite | 🔧 Pending |
 | 6 | Seed recipe (Macaroni Bolognese id:1720000000000) still in code | ⏳ Remove once real cards scanned |
 | 7 | "Heard:" debug display still in voice checklist | ⏳ Remove once voice confirmed working |
+| 8 | File corrupted by incremental edits in v2.5/2.6 — full rewrite needed (in progress via Cowork) | 🔧 In progress |
 
 ---
 
@@ -232,4 +234,5 @@ C = { ink:"#1C1C1E", paper:"#F5F2ED", card:"#FFFFFF", sage:"#4A7C59",
 - v2.2: **Cloudflare KV cloud storage** — recipes and schedule stored in KV, shared across all devices; SecretScreen (shared password entry); loading screen; save status toast; migration prompt for existing localStorage data; ingredient routing fix ("to taste" items → pantry staples at scan time and shopping list display time); weekly planner button overflow fix
 - v2.3: **Cloud storage bug fixes** — recreated missing `functions/api/recipes.js` and `functions/api/schedule.js` (never committed to repo); fixed SecretScreen POSTing `null` to KV on every new device setup (wiped all recipes); fixed `seedIfEmpty()` re-injecting seed after migration. Full end-to-end cloud round-trip verified working.
 - v2.4: **Duplicate detection** — fuzzy title matching (≥60% word overlap) checks for duplicates on save; side-by-side modal shows existing vs new scan with date/steps/ingredients; options to keep existing, replace, or save both.
-- v2.5: **Auto-crop front photo** — CropModal removed; front card photo is now auto-cropped on capture using fixed Dinnerly card proportions (y=10%–75%, full width → 1200×675 JPEG). Scan flow reduced from 4 taps to 3.
+- v2.5–2.6: **Auto-crop & viewfinder experiments** — attempted fixed-percentage auto-crop and live getUserMedia viewfinder for front card; both abandoned due to card distance variability and UX friction. File became corrupted from incremental edits.
+- v2.7: **Clean rewrite** — full file rewritten via Cowork; restores simple scan flow (front file input → CropModal → back file input → parse → review); removes ViewfinderCapture entirely; all v2.4 features preserved.
