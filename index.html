@@ -368,8 +368,9 @@ function TopBar({onBack,title,right,dark}) {
   );
 }
 
-function HomeScreen({recipes,schedule,onCatalog,onPlanner,onShopping,onAdd,onSettings}) {
+function HomeScreen({recipes,schedule,onCatalog,onPlanner,onShopping,onFavorites,onAdd,onSettings}) {
   const assignedCount=Object.values(schedule).filter(Boolean).length;
+  const favCount=recipes.filter(r=>r.favorite).length;
   return (
     <div style={{...base,minHeight:"100vh",background:C.paper}}>
       <div style={{background:C.sage,padding:"28px 28px 24px",display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
@@ -408,6 +409,14 @@ function HomeScreen({recipes,schedule,onCatalog,onPlanner,onShopping,onAdd,onSet
           <div>
             <div style={{fontSize:22,fontWeight:700,color:C.ink,marginBottom:6}}>Shopping List</div>
             <div style={{fontSize:14,color:C.muted,lineHeight:1.5}}>View and manage your grocery list</div>
+          </div>
+        </button>
+        <button onClick={onFavorites} className="cat-tile" style={{...base,background:C.card,border:`1.5px solid ${C.border}`,borderRadius:20,padding:"32px 28px",cursor:"pointer",textAlign:"left",boxShadow:"0 2px 16px rgba(0,0,0,0.07)",transition:"all 0.18s",display:"flex",alignItems:"center",gap:24,width:"100%"}}>
+          <span style={{fontSize:64,lineHeight:1,flexShrink:0}}>{"\u2764\ufe0f"}</span>
+          <div>
+            <div style={{fontSize:22,fontWeight:700,color:C.ink,marginBottom:6}}>Favorites</div>
+            <div style={{fontSize:14,color:C.muted,lineHeight:1.5}}>Your saved recipes, one tap away</div>
+            <div style={{fontSize:13,color:favCount>0?"#c0304a":C.muted,background:favCount>0?"#fde8ec":"#F0EDE8",borderRadius:20,padding:"4px 14px",fontWeight:600,display:"inline-block",marginTop:10}}>{favCount>0?`${favCount} saved`:`None saved yet`}</div>
           </div>
         </button>
       </div>
