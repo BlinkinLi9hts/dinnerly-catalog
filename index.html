@@ -222,7 +222,7 @@ function stopSpeaking() { window.speechSynthesis?.cancel(); }
 const NEXT_PHRASES=["next step","ok what's next","what's next","continue","okay what's next","move on","next","go on","step"];
 const START_PHRASES=["i've got all the ingredients","i have all the ingredients","ready to start cooking","ready to cook","let's start cooking","let's cook","start cooking","all ingredients ready","ingredients are ready","ready","start cook","let's start","all done","i'm ready","im ready","start"];
 const WHATS_LEFT_PHRASES=["what's left","whats left","what do i still need","what's remaining","whats remaining","read the list","what else","read it to me","what do i need","what is left","what is remaining","what else do i need","read list","still need","anything else","what do i have left","left to get"];
-const GOT_THAT_PHRASES=["got that","got it","got that one","have that","i have that","check that","yep got it","check it","next one","got one","i got it","i got that","found it","have it","already have","got this","i have this","done that","that one","yep","yes got it","have one","i've got that","got"];
+const GOT_THAT_PHRASES=["got that","got it","got that one","have that","i have that","check that","yep got it","check it","next one","got one","i got it","i got that","found it","have it","already have","got this","i have this","done that","that one","yep","yes got it","have one","i've got that"];
 
 function useVoice(onNext,active) {
   const ref=useRef(active); ref.current=active;
