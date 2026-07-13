@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Dinnerly Recipe Catalog v2.0</title>
+<title>Dinnerly Recipe Catalog v2.1</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -712,17 +712,13 @@ const DAYS=[
   {key:"sun",label:"Sunday"},
 ];
 
-function PlannerScreen({recipes,schedule,onUpdateSchedule,onBack,onViewRecipe}) {
-  const [pickingDay,setPickingDay]=useState(null);
+function PlannerScreen({recipes,schedule,onUpdateSchedule,onBack,onViewRecipe,onPickDay}) {
   const [showShop,setShowShop]=useState(false);
   const recipeMap=useMemo(()=>{const m={};recipes.forEach(r=>m[r.id]=r);return m;},[recipes]);
   const assignedCount=Object.values(schedule).filter(Boolean).length;
 
-  const handlePick=(day,recipeId)=>{
-    const next={...schedule,[day]:recipeId||null};
-    if(!recipeId) delete next[day];
-    onUpdateSchedule(next);
-    setPickingDay(null);
+  const clearDay=(day)=>{
+    const next={...schedule}; delete next[day]; onUpdateSchedule(next);
   };
 
   if (showShop) return <ShoppingListScreen recipes={recipes} schedule={schedule} onBack={()=>setShowShop(false)}/>;
@@ -754,13 +750,11 @@ function PlannerScreen({recipes,schedule,onUpdateSchedule,onBack,onViewRecipe}) 
             <div key={key} className="day-card"
               style={{background:C.card,borderRadius:14,border:`1.5px solid ${r?C.sageMid:C.border}`,overflow:"hidden",boxShadow:"0 1px 6px rgba(0,0,0,0.05)",transition:"all 0.18s"}}>
               <div style={{display:"flex",alignItems:"center",gap:0}}>
-                {/* Day label */}
                 <div style={{width:100,padding:"16px 14px",background:r?C.sageLight:"#FAFAFA",borderRight:`1px solid ${r?C.sageMid:C.border}`,flexShrink:0}}>
                   <div style={{fontSize:13,fontWeight:700,color:r?C.sageDark:C.muted}}>{label}</div>
                 </div>
-                {/* Recipe or add */}
                 {r?(
-                  <div style={{flex:1,display:"flex",alignItems:"center",gap:12,padding:"12px 14px",cursor:"pointer"}} onClick={()=>setPickingDay(key)}>
+                  <div style={{flex:1,display:"flex",alignItems:"center",gap:12,padding:"12px 14px"}}>
                     {r.frontImage
                       ?<img src={r.frontImage} alt={r.title} style={{width:56,height:44,objectFit:"cover",borderRadius:8,background:"#eee",flexShrink:0}}/>
                       :<div style={{width:56,height:44,borderRadius:8,background:C.sageLight,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>{cat.emoji}</div>}
@@ -768,15 +762,16 @@ function PlannerScreen({recipes,schedule,onUpdateSchedule,onBack,onViewRecipe}) 
                       <div style={{fontSize:14,fontWeight:700,color:C.ink,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.title}</div>
                       <div style={{fontSize:12,color:C.muted,marginTop:2}}>{cat.emoji} {cat.label}{r.totalTime?` · ⏱ ${r.totalTime}`:""}</div>
                     </div>
-                    <div style={{display:"flex",gap:8,flexShrink:0}}>
-                      <button onClick={e=>{e.stopPropagation();onViewRecipe(r);}} style={{...btnP,padding:"7px 12px",fontSize:12}}>Cook</button>
-                      <button onClick={e=>{e.stopPropagation();setPickingDay(key);}} style={{...btnG,padding:"7px 10px",fontSize:12}}>✏️</button>
+                    <div style={{display:"flex",gap:6,flexShrink:0}}>
+                      <button onClick={()=>onViewRecipe(r)} style={{...btnP,padding:"7px 12px",fontSize:12}}>Cook</button>
+                      <button onClick={()=>onPickDay(key)} style={{...base,background:"rgba(91,62,140,0.1)",color:C.plum,border:`1px solid rgba(91,62,140,0.3)`,borderRadius:8,padding:"7px 10px",fontSize:12,cursor:"pointer"}}>✏️</button>
+                      <button onClick={()=>clearDay(key)} style={{...base,background:"transparent",color:"#b03020",border:"1px solid #f5c0b0",borderRadius:8,padding:"7px 10px",fontSize:12,cursor:"pointer"}}>✕</button>
                     </div>
                   </div>
                 ):(
-                  <div style={{flex:1,display:"flex",alignItems:"center",gap:10,padding:"16px 14px",cursor:"pointer",color:C.muted}} onClick={()=>setPickingDay(key)}>
-                    <span style={{fontSize:22,opacity:0.4}}>＋</span>
-                    <span style={{fontSize:14}}>Add a meal</span>
+                  <div style={{flex:1,display:"flex",alignItems:"center",gap:10,padding:"16px 14px",cursor:"pointer",color:C.plum}} onClick={()=>onPickDay(key)}>
+                    <span style={{fontSize:22,opacity:0.5}}>＋</span>
+                    <span style={{fontSize:14,fontWeight:600}}>Add a meal</span>
                   </div>
                 )}
               </div>
@@ -784,15 +779,6 @@ function PlannerScreen({recipes,schedule,onUpdateSchedule,onBack,onViewRecipe}) 
           );
         })}
       </div>
-
-      {pickingDay&&(
-        <RecipePicker
-          recipes={recipes}
-          current={schedule[pickingDay]||null}
-          onSelect={id=>handlePick(pickingDay,id)}
-          onClear={()=>handlePick(pickingDay,null)}
-          onClose={()=>setPickingDay(null)}/>
-      )}
     </div>
   );
 }
@@ -911,7 +897,7 @@ function ShoppingListScreen({recipes,schedule,onBack}) {
 }
 
 // ── Detail Screen ─────────────────────────────────────────────────────────────
-function DetailScreen({recipe,onBack,onCook,onUpdatePhoto,onUpdateCategory}) {
+function DetailScreen({recipe,onBack,onCook,onUpdatePhoto,onUpdateCategory,plannerPickDay,plannerDayLabel,onAddToPlanner}) {
   const [guestCount,setGuestCount]=useState(recipe.servings);
   const [scaledIng,setScaledIng]=useState(()=>scaleIngredients(recipe,recipe.servings));
   const [scaling,setScaling]=useState(false);
@@ -944,7 +930,9 @@ function DetailScreen({recipe,onBack,onCook,onUpdatePhoto,onUpdateCategory}) {
 
   return (
     <div style={{...base,minHeight:"100vh",background:C.paper}}>
-      <TopBar onBack={onBack} title={recipe.title} right={<button onClick={()=>setShowChecklist(true)} style={{...btnP,background:C.orange,padding:"8px 18px",fontSize:14}}>Cook →</button>}/>
+      <TopBar onBack={onBack} title={recipe.title} right={plannerPickDay
+        ?<button onClick={onAddToPlanner} style={{...btnP,background:C.plum,padding:"8px 18px",fontSize:14}}>📅 Add to {plannerDayLabel}</button>
+        :<button onClick={()=>setShowChecklist(true)} style={{...btnP,background:C.orange,padding:"8px 18px",fontSize:14}}>Cook →</button>}/>
       <div style={{background:C.sageLight,padding:"8px 24px",display:"flex",alignItems:"center",gap:8}}>
         <span style={{fontSize:16}}>{currentCat.emoji}</span>
         <span style={{fontSize:13,color:C.sageDark,fontWeight:600}}>{currentCat.label}</span>
@@ -1038,9 +1026,9 @@ function DetailScreen({recipe,onBack,onCook,onUpdatePhoto,onUpdateCategory}) {
             </div>
           </div>
         </div>
-        <button onClick={()=>setShowChecklist(true)} style={{...btnP,background:C.orange,width:"100%",padding:15,fontSize:17,marginTop:24}}>
-          Gather Ingredients &amp; Cook →
-        </button>
+        {plannerPickDay
+          ?<button onClick={onAddToPlanner} style={{...btnP,background:C.plum,width:"100%",padding:15,fontSize:17,marginTop:24}}>📅 Add to {plannerDayLabel} → Return to Planner</button>
+          :<button onClick={()=>setShowChecklist(true)} style={{...btnP,background:C.orange,width:"100%",padding:15,fontSize:17,marginTop:24}}>Gather Ingredients &amp; Cook →</button>}
       </div>
       {showChecklist&&<IngredientChecklist ingredients={scaledIng} onDone={handleDone}/>}
       {showCatPicker&&<CategoryPicker current={detectCategory(recipe.title,recipe.category)} onSelect={id=>{onUpdateCategory(recipe.id,id);setShowCatPicker(false);}} onClose={()=>setShowCatPicker(false)}/>}
@@ -1168,14 +1156,34 @@ function App() {
   const [exitPrompt,setExitPrompt]=useState(false);
 
   const handleUpdateSchedule=s=>{setSchedule(s);saveSchedule(s);};
+  const [plannerPickDay,setPlannerPickDay]=useState(null);
+  const DAYS_MAP={mon:"Monday",tue:"Tuesday",wed:"Wednesday",thu:"Thursday",fri:"Friday",sat:"Saturday",sun:"Sunday"};
+
+  const handlePlannerPick=(recipeId)=>{
+    if(plannerPickDay){
+      const next={...schedule,[plannerPickDay]:recipeId};
+      handleUpdateSchedule(next);
+      setPlannerPickDay(null);
+      setScreen("planner");
+    }
+  };
 
   useEffect(()=>{
     const onBack=e=>{
       e.preventDefault();
       if(screen==="cook"){setScreen("detail");return;}
-      if(screen==="detail"){setScreen(active?.fromPlanner?"planner":"recipelist");return;}
-      if(screen==="recipelist"){setScreen("catalog");return;}
-      if(screen==="catalog"){setScreen("home");return;}
+      if(screen==="detail"){
+        if(plannerPickDay){setScreen("recipelist");return;}
+        setScreen(active?.fromPlanner?"planner":"recipelist");return;
+      }
+      if(screen==="recipelist"){
+        if(plannerPickDay){setScreen("catalog");return;}
+        setScreen("catalog");return;
+      }
+      if(screen==="catalog"){
+        if(plannerPickDay){setPlannerPickDay(null);setScreen("planner");return;}
+        setScreen("home");return;
+      }
       if(screen==="planner"){setScreen("home");return;}
       if(screen==="scan"){setScreen(activeCategory?"recipelist":"catalog");return;}
       if(showSettings){setShowSettings(false);return;}
@@ -1185,7 +1193,7 @@ function App() {
     window.history.pushState(null,"",window.location.href);
     window.addEventListener("popstate",onBack);
     return()=>window.removeEventListener("popstate",onBack);
-  },[screen,showSettings,exitPrompt,activeCategory,active]);
+  },[screen,showSettings,exitPrompt,activeCategory,active,plannerPickDay]);
 
   useEffect(()=>{window.history.pushState(null,"",window.location.href);},[screen]);
 
@@ -1196,34 +1204,52 @@ function App() {
 
   const goToRecipe=(r,fromPlanner=false)=>{setActive({recipe:r,guestCount:r.servings,scaledIngredients:scaleIngredients(r,r.servings),fromPlanner});setScreen("detail");};
 
-  if(!hasKey||showSettings) return <ApiKeyScreen onSaved={()=>{setHasKey(true);setShowSettings(false);}}/>;
+  const pickBanner=plannerPickDay?(
+    <div style={{background:C.plum,padding:"10px 20px",display:"flex",alignItems:"center",gap:10}}>
+      <span style={{fontSize:14,color:"rgba(255,255,255,0.8)"}}>📅 Picking meal for</span>
+      <span style={{fontSize:14,fontWeight:700,color:"#fff"}}>{DAYS_MAP[plannerPickDay]}</span>
+      <button onClick={()=>{setPlannerPickDay(null);setScreen("planner");}} style={{marginLeft:"auto",background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:6,padding:"4px 12px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+    </div>
+  ):null;
+
+  if(!hasKey||showSettings) return <ApiKeyScreen onSaved={()=>{setHasKey(true);setShowSettings(false);}}/>
   if(screen==="scan") return <ScanScreen onBack={()=>setScreen(activeCategory?"recipelist":"catalog")} onSaved={handleSaved}/>;
   if(screen==="detail"&&active?.recipe) return (
     <DetailScreen recipe={active.recipe}
-      onBack={()=>setScreen(active?.fromPlanner?"planner":"recipelist")}
+      onBack={()=>{if(plannerPickDay){setScreen("recipelist");}else{setScreen(active?.fromPlanner?"planner":"recipelist");}}}
       onUpdatePhoto={handleUpdatePhoto} onUpdateCategory={handleUpdateCategory}
+      plannerPickDay={plannerPickDay}
+      plannerDayLabel={plannerPickDay?DAYS_MAP[plannerPickDay]:null}
+      onAddToPlanner={()=>handlePlannerPick(active.recipe.id)}
       onCook={(r,g,s)=>{setActive(p=>({...p,recipe:r,guestCount:g,scaledIngredients:s}));setScreen("cook");}}/>
   );
   if(screen==="cook"&&active?.recipe) return (
     <CookScreen recipe={active.recipe} guestCount={active.guestCount} scaledIngredients={active.scaledIngredients} onBack={()=>setScreen("detail")}/>
   );
   if(screen==="recipelist"&&activeCategory) return (
-    <RecipeListScreen recipes={recipes} categoryId={activeCategory}
-      onBack={()=>setScreen("catalog")}
-      onSelect={r=>goToRecipe(r)}
-      onDelete={handleDelete} onAdd={()=>setScreen("scan")}/>
+    <>
+      {pickBanner}
+      <RecipeListScreen recipes={recipes} categoryId={activeCategory}
+        onBack={()=>setScreen("catalog")}
+        onSelect={r=>goToRecipe(r,false)}
+        onDelete={handleDelete} onAdd={()=>setScreen("scan")}/>
+    </>
   );
   if(screen==="catalog") return (
-    <CategoryScreen recipes={recipes}
-      onBack={()=>setScreen("home")}
-      onSelectCategory={id=>{setActiveCategory(id);setScreen("recipelist");}}
-      onAdd={()=>setScreen("scan")}/>
+    <>
+      {pickBanner}
+      <CategoryScreen recipes={recipes}
+        onBack={()=>{if(plannerPickDay){setPlannerPickDay(null);setScreen("planner");}else{setScreen("home");}}}
+        onSelectCategory={id=>{setActiveCategory(id);setScreen("recipelist");}}
+        onAdd={()=>setScreen("scan")}/>
+    </>
   );
   if(screen==="planner") return (
     <PlannerScreen recipes={recipes} schedule={schedule}
       onUpdateSchedule={handleUpdateSchedule}
       onBack={()=>setScreen("home")}
-      onViewRecipe={r=>goToRecipe(r,true)}/>
+      onViewRecipe={r=>goToRecipe(r,true)}
+      onPickDay={day=>{setPlannerPickDay(day);setActiveCategory(null);setScreen("catalog");}}/>
   );
 
   return (
