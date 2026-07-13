@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Dinnerly Recipe Catalog v2.1</title>
+<title>Dinnerly Recipe Catalog v2.2</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -26,11 +26,10 @@
 <script type="text/babel">
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
-// ── Storage helpers ───────────────────────────────────────────────────────────
-const API_KEY_STORAGE   = "dinnerly-api-key";
-const STORAGE_KEY       = "dinnerly-recipes-v2";
-const SCHEDULE_KEY      = "dinnerly-schedule-v1";
-const SHOP_CHECKED_KEY  = "dinnerly-shop-checked-v1";
+const API_KEY_STORAGE  = "dinnerly-api-key";
+const STORAGE_KEY      = "dinnerly-recipes-v2";
+const SCHEDULE_KEY     = "dinnerly-schedule-v1";
+const SHOP_CHECKED_KEY = "dinnerly-shop-checked-v1";
 
 function getApiKey() { return localStorage.getItem(API_KEY_STORAGE) || ""; }
 function setApiKey(k) { localStorage.setItem(API_KEY_STORAGE, k); }
@@ -41,7 +40,6 @@ function saveSchedule(s) { try { localStorage.setItem(SCHEDULE_KEY, JSON.stringi
 function loadShopChecked() { try { const c=localStorage.getItem(SHOP_CHECKED_KEY); return c?JSON.parse(c):{}; } catch { return {}; } }
 function saveShopChecked(c) { try { localStorage.setItem(SHOP_CHECKED_KEY, JSON.stringify(c)); } catch {} }
 
-// ── API ───────────────────────────────────────────────────────────────────────
 async function callClaude(messages, system="", maxTokens=1200) {
   const key=getApiKey(); if (!key) throw new Error("NO_API_KEY");
   const body={model:"claude-sonnet-4-6",max_tokens:maxTokens,messages};
@@ -78,10 +76,10 @@ async function parseRecipeCards(frontB64,frontType,backB64,backType) {
     {type:"text",text:"This is the FRONT of a Dinnerly recipe card (title, photo, time, servings)."},
     imgBlock(backB64,backType),
     {type:"text",text:`This is the BACK of the same Dinnerly recipe card.
-Dinnerly cards have these distinct sections — extract each separately:
-1. "What We Send" — main ingredients with measurements
-2. "What You Need" — pantry staples, rarely have measurements (e.g. "kosher salt", "olive oil")
-3. "Tools" — kitchen utensils needed (e.g. "medium saucepan", "large skillet")
+Dinnerly cards have these distinct sections -- extract each separately:
+1. "What We Send" -- main ingredients with measurements
+2. "What You Need" -- pantry staples, rarely have measurements (e.g. "kosher salt", "olive oil")
+3. "Tools" -- kitchen utensils needed (e.g. "medium saucepan", "large skillet")
 4. Steps / instructions
 
 Return ONLY valid JSON, no markdown, no backticks:
@@ -90,7 +88,7 @@ Return ONLY valid JSON, no markdown, no backticks:
   "servings": 4,
   "totalTime": "20 min",
   "ingredientsSent": [
-    { "name": "elbow macaroni", "qty": 0.5, "unit": "lb", "display": "½ lb elbow macaroni" }
+    { "name": "elbow macaroni", "qty": 0.5, "unit": "lb", "display": "1/2 lb elbow macaroni" }
   ],
   "ingredientsNeeded": ["kosher salt & ground pepper", "olive oil"],
   "tools": ["medium saucepan", "large skillet"],
@@ -109,13 +107,12 @@ Rules:
   ]}],"",2000);
   const clean=text.replace(/```json|```/g,"").trim();
   const parsed=JSON.parse(clean);
-  // Normalize: always ensure legacy "ingredients" field for backward compat
   if (!parsed.ingredients) parsed.ingredients=parsed.ingredientsSent||[];
   return parsed;
 }
 
 function formatQty(qty,unit,name) {
-  const fractions=[[0.125,"⅛"],[0.25,"¼"],[0.333,"⅓"],[0.5,"½"],[0.667,"⅔"],[0.75,"¾"]];
+  const fractions=[[0.125,"\u215b"],[0.25,"\u00bc"],[0.333,"\u2153"],[0.5,"\u00bd"],[0.667,"\u2154"],[0.75,"\u00be"]];
   const whole=Math.floor(qty), frac=qty-whole;
   let q=whole>0?String(whole):"";
   const match=fractions.find(([v])=>Math.abs(frac-v)<0.05);
@@ -138,65 +135,39 @@ Answer concisely. Use scaled quantities.`;
   return callClaude([...history.map(h=>({role:h.role,content:h.content})),{role:"user",content:question}],system,600);
 }
 
-// ── Shopping list aggregation ─────────────────────────────────────────────────
 function buildShoppingList(schedule, recipes) {
   const recipeMap={};
   recipes.forEach(r=>recipeMap[r.id]=r);
-
-  const sentMap={}; // key: "name|unit" -> { display, qty, unit, name, recipes[] }
+  const sentMap={};
   const neededSet=new Set();
   const toolsSet=new Set();
-
   const DAYS=["mon","tue","wed","thu","fri","sat","sun"];
   DAYS.forEach(day=>{
-    const rid=schedule[day];
-    if (!rid) return;
-    const r=recipeMap[rid];
-    if (!r) return;
-
-    // ingredientsSent — aggregate by name+unit
+    const rid=schedule[day]; if (!rid) return;
+    const r=recipeMap[rid]; if (!r) return;
     const src=r.ingredientsSent||r.ingredients||[];
     src.forEach(ing=>{
       const key=`${ing.name.toLowerCase().trim()}|${(ing.unit||"").toLowerCase().trim()}`;
-      if (sentMap[key]) {
-        sentMap[key].qty+=ing.qty||0;
-        sentMap[key].recipes.push(r.title);
-      } else {
-        sentMap[key]={name:ing.name,unit:ing.unit||"",qty:ing.qty||0,recipes:[r.title]};
-      }
+      if (sentMap[key]) { sentMap[key].qty+=ing.qty||0; sentMap[key].recipes.push(r.title); }
+      else { sentMap[key]={name:ing.name,unit:ing.unit||"",qty:ing.qty||0,recipes:[r.title]}; }
     });
-
-    // ingredientsNeeded — deduplicate
     (r.ingredientsNeeded||[]).forEach(n=>neededSet.add(n.trim()));
-
-    // tools — deduplicate
     (r.tools||[]).forEach(t=>toolsSet.add(t.trim()));
   });
-
-  // Rebuild display strings for aggregated sent ingredients
-  const sent=Object.values(sentMap).map(item=>({
-    ...item,
-    display:formatQty(item.qty,item.unit,item.name),
-  }));
-
-  return {
-    sent,
-    needed:Array.from(neededSet).sort(),
-    tools:Array.from(toolsSet).sort(),
-  };
+  const sent=Object.values(sentMap).map(item=>({...item,display:formatQty(item.qty,item.unit,item.name)}));
+  return { sent, needed:Array.from(neededSet).sort(), tools:Array.from(toolsSet).sort() };
 }
 
-// ── Categories ────────────────────────────────────────────────────────────────
 const CATEGORIES=[
-  {id:"beef",    label:"Beef",    emoji:"🥩", keywords:["beef","steak","burger","brisket","meatball","bolognese","ground beef","sirloin","ribeye","chuck","short rib"]},
-  {id:"chicken", label:"Chicken", emoji:"🍗", keywords:["chicken","poultry"]},
-  {id:"pork",    label:"Pork",    emoji:"🐷", keywords:["pork","bacon","ham","sausage","chorizo","pancetta","prosciutto","ribs"]},
-  {id:"seafood", label:"Seafood", emoji:"🦐", keywords:["shrimp","salmon","fish","tilapia","cod","tuna","scallop","lobster","crab","halibut","mahi","catfish","trout","sea bass"]},
-  {id:"lamb",    label:"Lamb",    emoji:"🐑", keywords:["lamb","mutton"]},
-  {id:"pasta",   label:"Pasta",   emoji:"🍝", keywords:["pasta","linguine","spaghetti","penne","rigatoni","fettuccine","macaroni","noodle","ramen","gnocchi","lasagna","ravioli","tortellini"]},
-  {id:"veggie",  label:"Veggie",  emoji:"🌱", keywords:["tofu","vegetarian","veggie","lentil","chickpea","falafel","tempeh","cauliflower","mushroom"]},
-  {id:"eggs",    label:"Eggs",    emoji:"🥚", keywords:["egg","frittata","omelette","quiche","shakshuka"]},
-  {id:"other",   label:"Other",   emoji:"🍽️", keywords:[]},
+  {id:"beef",    label:"Beef",    emoji:"\ud83e\udd69", keywords:["beef","steak","burger","brisket","meatball","bolognese","ground beef","sirloin","ribeye","chuck","short rib"]},
+  {id:"chicken", label:"Chicken", emoji:"\ud83c\udf57", keywords:["chicken","poultry"]},
+  {id:"pork",    label:"Pork",    emoji:"\ud83d\udc37", keywords:["pork","bacon","ham","sausage","chorizo","pancetta","prosciutto","ribs"]},
+  {id:"seafood", label:"Seafood", emoji:"\ud83e\udd90", keywords:["shrimp","salmon","fish","tilapia","cod","tuna","scallop","lobster","crab","halibut","mahi","catfish","trout","sea bass"]},
+  {id:"lamb",    label:"Lamb",    emoji:"\ud83d\udc11", keywords:["lamb","mutton"]},
+  {id:"pasta",   label:"Pasta",   emoji:"\ud83c\udf5d", keywords:["pasta","linguine","spaghetti","penne","rigatoni","fettuccine","macaroni","noodle","ramen","gnocchi","lasagna","ravioli","tortellini"]},
+  {id:"veggie",  label:"Veggie",  emoji:"\ud83c\udf31", keywords:["tofu","vegetarian","veggie","lentil","chickpea","falafel","tempeh","cauliflower","mushroom"]},
+  {id:"eggs",    label:"Eggs",    emoji:"\ud83e\udd5a", keywords:["egg","frittata","omelette","quiche","shakshuka"]},
+  {id:"other",   label:"Other",   emoji:"\ud83c\udf7d\ufe0f", keywords:[]},
 ];
 
 function detectCategory(title,saved) {
@@ -210,14 +181,13 @@ function detectCategory(title,saved) {
 }
 function getCategoryInfo(id) { return CATEGORIES.find(c=>c.id===id)||CATEGORIES[CATEGORIES.length-1]; }
 
-// ── Voice helpers ─────────────────────────────────────────────────────────────
 function speak(text) { window.speechSynthesis?.cancel(); const u=new SpeechSynthesisUtterance(text); u.rate=0.95; u.pitch=1; u.volume=1; window.speechSynthesis?.speak(u); }
 function stopSpeaking() { window.speechSynthesis?.cancel(); }
 
-const NEXT_PHRASES       =["next step","ok what's next","what's next","continue","okay what's next","move on"];
-const START_PHRASES      =["i've got all the ingredients","i have all the ingredients","ready to start cooking","ready to cook","let's start cooking","let's cook","start cooking","all ingredients ready","ingredients are ready"];
-const WHATS_LEFT_PHRASES =["what's left","whats left","what do i still need","what's remaining","whats remaining","read the list","what else","read it to me","what do i need","what is left"];
-const GOT_THAT_PHRASES   =["got that","got it","got that one","have that","i have that","check that","yep got it","check it","next one","got one","i got it","i got that"];
+const NEXT_PHRASES=["next step","ok what's next","what's next","continue","okay what's next","move on"];
+const START_PHRASES=["i've got all the ingredients","i have all the ingredients","ready to start cooking","ready to cook","let's start cooking","let's cook","start cooking","all ingredients ready","ingredients are ready"];
+const WHATS_LEFT_PHRASES=["what's left","whats left","what do i still need","what's remaining","whats remaining","read the list","what else","read it to me","what do i need","what is left"];
+const GOT_THAT_PHRASES=["got that","got it","got that one","have that","i have that","check that","yep got it","check it","next one","got one","i got it","i got that"];
 
 function useVoice(onNext,active) {
   const ref=useRef(active); ref.current=active;
@@ -276,7 +246,6 @@ function useWakeLock(active) {
   return {ok,isIOS};
 }
 
-// ── Design tokens ─────────────────────────────────────────────────────────────
 const C={ink:"#1C1C1E",paper:"#F5F2ED",card:"#FFFFFF",sage:"#4A7C59",sageDark:"#3A6147",sageMid:"#7AAE8A",sageLight:"#EBF2ED",orange:"#D9622B",muted:"#8A8A8E",border:"#E0DDD6",dark:"#141414",plum:"#5B3E8C"};
 const base={fontFamily:"Georgia,serif",boxSizing:"border-box"};
 const btnP={...base,background:C.sage,color:"#fff",border:"none",borderRadius:8,padding:"11px 22px",fontSize:15,cursor:"pointer",fontWeight:600};
@@ -284,54 +253,51 @@ const btnG={...base,background:"transparent",color:C.sage,border:`1.5px solid ${
 const btnD={...base,background:"transparent",color:"rgba(255,255,255,0.6)",border:"1.5px solid rgba(255,255,255,0.2)",borderRadius:8,padding:"10px 20px",fontSize:14,cursor:"pointer"};
 const inp={...base,border:`1.5px solid ${C.border}`,borderRadius:7,padding:"8px 12px",fontSize:14,background:"#fff",color:C.ink,outline:"none",width:"100%"};
 
-// ── API Key Screen ────────────────────────────────────────────────────────────
 function ApiKeyScreen({onSaved}) {
   const [key,setKey]=useState(""); const [err,setErr]=useState(""); const [testing,setTesting]=useState(false); const [show,setShow]=useState(false);
   const save=async()=>{
     const k=key.trim();
-    if(!k){setErr("Key is empty — please paste your API key");return;}
-    if(!k.startsWith("sk-ant-")){setErr("Key should start with sk-ant- (got: "+k.substring(0,12)+")");return;}
+    if(!k){setErr("Key is empty");return;}
+    if(!k.startsWith("sk-ant-")){setErr("Key should start with sk-ant-");return;}
     setTesting(true);setErr("");
     try{setApiKey(k);await callClaude([{role:"user",content:"Hi"}],"",10);onSaved();}
-    catch(e){setApiKey("");setErr("Couldn't connect: "+e.message);}
+    catch(e){setApiKey("");setErr("Could not connect: "+e.message);}
     setTesting(false);
   };
   return (
     <div style={{...base,minHeight:"100vh",background:C.paper,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
       <div style={{background:C.card,borderRadius:16,padding:32,maxWidth:480,width:"100%",boxShadow:"0 4px 32px rgba(0,0,0,0.08)"}}>
         <div style={{fontSize:28,fontWeight:700,color:C.sage,marginBottom:6}}>Dinnerly</div>
-        <div style={{fontSize:14,color:C.muted,marginBottom:4}}>Recipe Catalog — first-time setup</div>
-        <div style={{fontSize:11,color:C.muted,marginBottom:24,letterSpacing:1}}>v2.0</div>
+        <div style={{fontSize:14,color:C.muted,marginBottom:4}}>Recipe Catalog</div>
+        <div style={{fontSize:11,color:C.muted,marginBottom:24,letterSpacing:1}}>v2.2</div>
         <div style={{fontSize:15,fontWeight:700,marginBottom:8}}>Enter your Anthropic API key</div>
-        <div style={{fontSize:13,color:C.muted,marginBottom:16,lineHeight:1.5}}>Get one free at <strong>console.anthropic.com</strong> → API Keys. Stored only on this device.</div>
+        <div style={{fontSize:13,color:C.muted,marginBottom:16,lineHeight:1.5}}>Get one free at <strong>console.anthropic.com</strong> &gt; API Keys. Stored only on this device.</div>
         <div style={{position:"relative",marginBottom:8}}>
           <input type={show?"text":"password"} value={key} onChange={e=>setKey(e.target.value)} onKeyDown={e=>e.key==="Enter"&&save()}
             placeholder="sk-ant-api03-..." style={{...inp,fontSize:13,paddingRight:48}} autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck="false"/>
-          <button onClick={()=>setShow(v=>!v)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:18,color:C.muted}}>{show?"🙈":"👁"}</button>
+          <button onClick={()=>setShow(v=>!v)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:18,color:C.muted}}>{show?"\ud83d\ude48":"\ud83d\udc41"}</button>
         </div>
         <div style={{fontSize:12,color:C.muted,marginBottom:16}}>
-          Key preview: <strong style={{color:C.ink,fontFamily:"monospace"}}>{key?key.substring(0,16)+"...":"(nothing pasted yet)"}</strong>
-          {key&&<span style={{marginLeft:8,color:key.startsWith("sk-ant-")?C.sage:"#b03020",fontWeight:700}}>{key.startsWith("sk-ant-")?"✓ looks good":"✗ wrong format"}</span>}
+          Preview: <strong style={{color:C.ink,fontFamily:"monospace"}}>{key?key.substring(0,16)+"...":"(nothing yet)"}</strong>
+          {key&&<span style={{marginLeft:8,color:key.startsWith("sk-ant-")?C.sage:"#b03020",fontWeight:700}}>{key.startsWith("sk-ant-")?"ok":"wrong format"}</span>}
         </div>
         {err&&<div style={{color:"#b03020",fontSize:13,marginBottom:12,padding:"10px 12px",background:"#fff0ee",borderRadius:6}}>{err}</div>}
-        <button onClick={save} disabled={testing||!key.trim()} style={{...btnP,width:"100%",padding:14,fontSize:16,opacity:(testing||!key.trim())?0.5:1}}>{testing?"Testing…":"Save & Continue →"}</button>
+        <button onClick={save} disabled={testing||!key.trim()} style={{...btnP,width:"100%",padding:14,fontSize:16,opacity:(testing||!key.trim())?0.5:1}}>{testing?"Testing...":"Save & Continue"}</button>
       </div>
     </div>
   );
 }
 
-// ── TopBar ────────────────────────────────────────────────────────────────────
 function TopBar({onBack,title,right,dark}) {
   return (
     <div style={{background:dark?C.dark:C.sage,padding:"14px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
-      {onBack?<button onClick={onBack} style={dark?btnD:{...btnG,color:"rgba(255,255,255,0.7)",borderColor:"rgba(255,255,255,0.3)",padding:"7px 14px",fontSize:13}}>← Back</button>:<div style={{width:80}}/>}
+      {onBack?<button onClick={onBack} style={dark?btnD:{...btnG,color:"rgba(255,255,255,0.7)",borderColor:"rgba(255,255,255,0.3)",padding:"7px 14px",fontSize:13}}>&larr; Back</button>:<div style={{width:80}}/>}
       <span style={{color:"#fff",fontWeight:700,fontSize:17,flex:1,textAlign:"center"}}>{title}</span>
       {right||<div style={{width:80}}/>}
     </div>
   );
 }
 
-// ── Home Screen ───────────────────────────────────────────────────────────────
 function HomeScreen({recipes,schedule,onCatalog,onPlanner,onAdd,onSettings}) {
   const assignedCount=Object.values(schedule).filter(Boolean).length;
   return (
@@ -342,18 +308,17 @@ function HomeScreen({recipes,schedule,onCatalog,onPlanner,onAdd,onSettings}) {
           <div style={{fontSize:15,color:"rgba(255,255,255,0.85)",marginTop:6,fontStyle:"italic"}}>What are we cooking tonight?</div>
         </div>
         <div style={{display:"flex",gap:10,marginTop:4}}>
-          <button onClick={onSettings} style={{...btnD,padding:"8px 12px",fontSize:18}}>⚙️</button>
+          <button onClick={onSettings} style={{...btnD,padding:"8px 12px",fontSize:18}}>{"\u2699\ufe0f"}</button>
           <button onClick={onAdd} style={{...btnP,background:C.orange,display:"flex",alignItems:"center",gap:8,fontSize:14}}>
-            <span style={{fontSize:18}}>＋</span> Scan
+            <span style={{fontSize:18}}>+</span> Scan
           </button>
         </div>
       </div>
       <div style={{maxWidth:600,margin:"0 auto",padding:"40px 24px",display:"flex",flexDirection:"column",gap:20}}>
-        {/* Catalog tile */}
         <button onClick={onCatalog} className="cat-tile"
           style={{...base,background:C.card,border:`1.5px solid ${C.border}`,borderRadius:20,padding:"32px 28px",cursor:"pointer",
             textAlign:"left",boxShadow:"0 2px 16px rgba(0,0,0,0.07)",transition:"all 0.18s",display:"flex",alignItems:"center",gap:24,width:"100%"}}>
-          <span style={{fontSize:64,lineHeight:1,flexShrink:0}}>📖</span>
+          <span style={{fontSize:64,lineHeight:1,flexShrink:0}}>{"\ud83d\udcd6"}</span>
           <div>
             <div style={{fontSize:22,fontWeight:700,color:C.ink,marginBottom:6}}>Recipe Catalog</div>
             <div style={{fontSize:14,color:C.muted,lineHeight:1.5}}>Browse and cook from your collection</div>
@@ -362,16 +327,15 @@ function HomeScreen({recipes,schedule,onCatalog,onPlanner,onAdd,onSettings}) {
             </div>
           </div>
         </button>
-        {/* Planner tile */}
         <button onClick={onPlanner} className="cat-tile"
           style={{...base,background:C.card,border:`1.5px solid ${C.border}`,borderRadius:20,padding:"32px 28px",cursor:"pointer",
             textAlign:"left",boxShadow:"0 2px 16px rgba(0,0,0,0.07)",transition:"all 0.18s",display:"flex",alignItems:"center",gap:24,width:"100%"}}>
-          <span style={{fontSize:64,lineHeight:1,flexShrink:0}}>📅</span>
+          <span style={{fontSize:64,lineHeight:1,flexShrink:0}}>{"\ud83d\udcc5"}</span>
           <div>
             <div style={{fontSize:22,fontWeight:700,color:C.ink,marginBottom:6}}>Weekly Planner</div>
-            <div style={{fontSize:14,color:C.muted,lineHeight:1.5}}>Plan your week & build a shopping list</div>
+            <div style={{fontSize:14,color:C.muted,lineHeight:1.5}}>Plan your week &amp; build a shopping list</div>
             <div style={{fontSize:13,color:assignedCount>0?C.sageDark:C.muted,background:assignedCount>0?C.sageLight:"#F0EDE8",borderRadius:20,padding:"4px 14px",fontWeight:600,display:"inline-block",marginTop:10}}>
-              {assignedCount>0?`${assignedCount} meal${assignedCount!==1?"s":""} planned this week`:"No meals planned yet"}
+              {assignedCount>0?`${assignedCount} meal${assignedCount!==1?"s":""} planned`:"No meals planned yet"}
             </div>
           </div>
         </button>
@@ -380,19 +344,17 @@ function HomeScreen({recipes,schedule,onCatalog,onPlanner,onAdd,onSettings}) {
   );
 }
 
-// ── Category Screen ───────────────────────────────────────────────────────────
 function CategoryScreen({recipes,onSelectCategory,onBack,onAdd}) {
   const counts={};
   recipes.forEach(r=>{const c=detectCategory(r.title,r.category);counts[c]=(counts[c]||0)+1;});
   const active=CATEGORIES.filter(c=>counts[c.id]>0);
   return (
     <div style={{...base,minHeight:"100vh",background:C.paper}}>
-      <TopBar onBack={onBack} title="Recipe Catalog"
-        right={<button onClick={onAdd} style={{...btnP,background:C.orange,padding:"8px 14px",fontSize:13}}>＋ Scan</button>}/>
+      <TopBar onBack={onBack} title="Recipe Catalog" right={<button onClick={onAdd} style={{...btnP,background:C.orange,padding:"8px 14px",fontSize:13}}>+ Scan</button>}/>
       <div style={{maxWidth:900,margin:"0 auto",padding:"32px 24px"}}>
         {recipes.length===0?(
           <div style={{textAlign:"center",padding:"80px 0",color:C.muted}}>
-            <div style={{fontSize:52,marginBottom:16}}>🍽️</div>
+            <div style={{fontSize:52,marginBottom:16}}>{"\ud83c\udf7d\ufe0f"}</div>
             <div style={{fontSize:20,fontWeight:700,color:C.ink,marginBottom:8}}>Your catalog is empty</div>
             <div style={{fontSize:15}}>Tap Scan to add your first Dinnerly recipe.</div>
           </div>
@@ -417,19 +379,18 @@ function CategoryScreen({recipes,onSelectCategory,onBack,onAdd}) {
   );
 }
 
-// ── Recipe List Screen ────────────────────────────────────────────────────────
 function RecipeListScreen({recipes,categoryId,onBack,onSelect,onDelete,onAdd}) {
   const cat=getCategoryInfo(categoryId);
   const filtered=recipes.filter(r=>detectCategory(r.title,r.category)===categoryId);
   return (
     <div style={{...base,minHeight:"100vh",background:C.paper}}>
       <div style={{background:C.sage,padding:"18px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <button onClick={onBack} style={{...btnG,color:"rgba(255,255,255,0.8)",borderColor:"rgba(255,255,255,0.3)",padding:"7px 14px",fontSize:13}}>← Back</button>
+        <button onClick={onBack} style={{...btnG,color:"rgba(255,255,255,0.8)",borderColor:"rgba(255,255,255,0.3)",padding:"7px 14px",fontSize:13}}>&larr; Back</button>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <span style={{fontSize:22}}>{cat.emoji}</span>
           <span style={{color:"#fff",fontWeight:700,fontSize:18}}>{cat.label}</span>
         </div>
-        <button onClick={onAdd} style={{...btnP,background:C.orange,padding:"8px 14px",fontSize:13}}>＋ Scan</button>
+        <button onClick={onAdd} style={{...btnP,background:C.orange,padding:"8px 14px",fontSize:13}}>+ Scan</button>
       </div>
       <div style={{maxWidth:900,margin:"0 auto",padding:"28px 24px"}}>
         {filtered.length===0?(
@@ -453,77 +414,222 @@ function LibraryCard({recipe,onSelect,onDelete}) {
       <div style={{padding:"16px 16px 14px"}}>
         <div style={{fontSize:16,fontWeight:700,color:C.ink,marginBottom:6,lineHeight:1.3}}>{recipe.title}</div>
         <div style={{display:"flex",gap:12,fontSize:12,color:C.muted,marginBottom:14,flexWrap:"wrap"}}>
-          {recipe.totalTime&&<span>⏱ {recipe.totalTime}</span>}
-          <span>👥 Serves {recipe.servings}</span>
-          <span>📋 {recipe.steps.length} steps</span>
+          {recipe.totalTime&&<span>{"\u23f1"} {recipe.totalTime}</span>}
+          <span>Serves {recipe.servings}</span>
+          <span>{recipe.steps.length} steps</span>
         </div>
         <div style={{display:"flex",gap:8}}>
           <button onClick={onSelect} style={{...btnP,flex:1,padding:"9px 0",fontSize:14}}>View Recipe</button>
-          <button onClick={e=>{e.stopPropagation();onDelete();}} style={{...btnG,padding:"9px 13px",color:"#b03020",borderColor:"#d9a090",fontSize:13}}>✕</button>
+          <button onClick={e=>{e.stopPropagation();onDelete();}} style={{...btnG,padding:"9px 13px",color:"#b03020",borderColor:"#d9a090",fontSize:13}}>&times;</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Upload Zone ───────────────────────────────────────────────────────────────
-function UploadZone({id,label,data,onFileChosen}) {
+// -- Crop Modal (pinch/drag, 16:9 output)
+function CropModal({imageDataUrl, onConfirm, onRetake}) {
+  const canvasRef=useRef(null);
+  const containerRef=useRef(null);
+  const st=useRef({scale:1,ox:0,oy:0,lastDist:0,lastX:0,lastY:0,dragging:false,img:null,cw:0,ch:0});
+  const [ready,setReady]=useState(false);
+
+  useEffect(()=>{
+    const img=new Image();
+    img.onload=()=>{
+      st.current.img=img;
+      const con=containerRef.current; if (!con) return;
+      const cw=con.offsetWidth;
+      const ch=Math.round(cw*(9/16));
+      st.current.cw=cw; st.current.ch=ch;
+      const fill=Math.max(cw/img.width,ch/img.height);
+      st.current.scale=fill;
+      st.current.ox=(cw-img.width*fill)/2;
+      st.current.oy=(ch-img.height*fill)/2;
+      draw(); setReady(true);
+    };
+    img.src=imageDataUrl;
+  },[imageDataUrl]);
+
+  const draw=()=>{
+    const s=st.current;
+    if (!s.img||!canvasRef.current) return;
+    const c=canvasRef.current;
+    c.width=s.cw; c.height=s.ch;
+    const ctx=c.getContext("2d");
+    ctx.clearRect(0,0,s.cw,s.ch);
+    ctx.drawImage(s.img,s.ox,s.oy,s.img.width*s.scale,s.img.height*s.scale);
+    ctx.strokeStyle="rgba(255,255,255,0.3)"; ctx.lineWidth=2;
+    ctx.strokeRect(1,1,s.cw-2,s.ch-2);
+  };
+
+  const clamp=(sc,ox,oy,cw,ch,iw,ih)=>{
+    return {ox:Math.min(0,Math.max(cw-iw*sc,ox)),oy:Math.min(0,Math.max(ch-ih*sc,oy))};
+  };
+
+  const onTS=e=>{
+    e.preventDefault();
+    const t=e.touches; const s=st.current;
+    if(t.length===1){s.dragging=true;s.lastX=t[0].clientX;s.lastY=t[0].clientY;}
+    else if(t.length===2){s.dragging=false;s.lastDist=Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);}
+  };
+  const onTM=e=>{
+    e.preventDefault();
+    const t=e.touches; const s=st.current;
+    if(t.length===1&&s.dragging){
+      const dx=t[0].clientX-s.lastX; const dy=t[0].clientY-s.lastY;
+      s.lastX=t[0].clientX; s.lastY=t[0].clientY;
+      const p=clamp(s.scale,s.ox+dx,s.oy+dy,s.cw,s.ch,s.img.width,s.img.height);
+      s.ox=p.ox; s.oy=p.oy; draw();
+    } else if(t.length===2){
+      const dist=Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+      const factor=dist/s.lastDist; s.lastDist=dist;
+      const cx=(t[0].clientX+t[1].clientX)/2;
+      const cy=(t[0].clientY+t[1].clientY)/2;
+      const rect=canvasRef.current.getBoundingClientRect();
+      const px=cx-rect.left; const py=cy-rect.top;
+      const minSc=Math.max(s.cw/s.img.width,s.ch/s.img.height);
+      const ns=Math.max(minSc,Math.min(s.scale*factor,8));
+      const sr=ns/s.scale;
+      const p=clamp(ns,px-(px-s.ox)*sr,py-(py-s.oy)*sr,s.cw,s.ch,s.img.width,s.img.height);
+      s.scale=ns; s.ox=p.ox; s.oy=p.oy; draw();
+    }
+  };
+  const onTE=()=>{st.current.dragging=false;};
+
+  const confirm=()=>{
+    const s=st.current;
+    const OUT_W=1200, OUT_H=675;
+    const c=document.createElement("canvas"); c.width=OUT_W; c.height=OUT_H;
+    c.getContext("2d").drawImage(s.img,-s.ox/s.scale,-s.oy/s.scale,s.cw/s.scale,s.ch/s.scale,0,0,OUT_W,OUT_H);
+    onConfirm(c.toDataURL("image/jpeg",0.82));
+  };
+
   return (
-    <label htmlFor={id} style={{flex:1,borderRadius:12,padding:"24px 16px",textAlign:"center",cursor:"pointer",minHeight:180,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:10,border:`2px dashed ${data?C.sageMid:C.border}`,background:data?C.sageLight:"#fafafa"}}>
-      {data?<img src={data.dataUrl} alt={label} style={{maxHeight:140,borderRadius:8,boxShadow:"0 2px 8px rgba(0,0,0,0.12)"}}/>:<>
-        <div style={{fontSize:36}}>📷</div>
-        <div style={{fontWeight:700,fontSize:15,color:C.ink}}>{label}</div>
-        <div style={{fontSize:12,color:C.muted}}>Tap to choose or take photo</div>
-      </>}
-      <input id={id} type="file" accept="image/*" capture="environment"
-        style={{position:"absolute",width:1,height:1,opacity:0,pointerEvents:"none"}}
-        onChange={e=>{if(e.target.files?.[0])onFileChosen(e.target.files[0]);}}/>
-    </label>
+    <div style={{position:"fixed",inset:0,zIndex:400,background:"#000",display:"flex",flexDirection:"column"}}>
+      <div style={{background:"rgba(0,0,0,0.85)",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <button onClick={onRetake} style={{...base,background:"rgba(255,255,255,0.12)",color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontSize:14,cursor:"pointer"}}>Retake</button>
+        <span style={{color:"rgba(255,255,255,0.65)",fontSize:14}}>Pinch to zoom &bull; Drag to position</span>
+        <button onClick={confirm} style={{...btnP,background:C.sage,padding:"8px 18px",fontSize:14}}>Use Photo</button>
+      </div>
+      <div ref={containerRef} style={{flex:1,overflow:"hidden"}}>
+        <canvas ref={canvasRef} style={{display:"block",width:"100%",touchAction:"none"}}
+          onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE}/>
+      </div>
+      {!ready&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <div style={{color:"#fff",fontSize:16}}>Loading...</div>
+      </div>}
+    </div>
   );
 }
 
-// ── Scan Screen ───────────────────────────────────────────────────────────────
+// -- Scan Screen (fast flow: camera -> crop -> camera -> parse -> review)
 function ScanScreen({onBack,onSaved}) {
-  const [front,setFront]=useState(null); const [back,setBack]=useState(null);
-  const [stage,setStage]=useState("upload"); const [recipe,setRecipe]=useState(null); const [error,setError]=useState(null);
-  const readFile=file=>new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>{const d=e.target.result;res({dataUrl:d,base64:d.split(",")[1],type:file.type||"image/jpeg"});};r.onerror=rej;r.readAsDataURL(file);});
-  const handleParse=async()=>{
-    if(!front||!back) return; setError(null); setStage("parsing");
+  const [stage,setStage]=useState("front");
+  const [front,setFront]=useState(null);
+  const [back,setBack]=useState(null);
+  const [recipe,setRecipe]=useState(null);
+  const [error,setError]=useState(null);
+  const frontInputRef=useRef();
+  const backInputRef=useRef();
+
+  const readFile=file=>new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=e=>{const d=e.target.result;res({dataUrl:d,base64:d.split(",")[1],type:file.type||"image/jpeg"});};
+    r.onerror=rej; r.readAsDataURL(file);
+  });
+
+  useEffect(()=>{
+    if(stage==="front") setTimeout(()=>frontInputRef.current&&frontInputRef.current.click(),300);
+  },[stage]);
+
+  useEffect(()=>{
+    if(stage==="back") setTimeout(()=>backInputRef.current&&backInputRef.current.click(),300);
+  },[stage]);
+
+  const handleFrontChosen=async file=>{
+    const data=await readFile(file);
+    setFront(data); setStage("crop");
+  };
+
+  const handleCropConfirm=croppedDataUrl=>{
+    setFront(prev=>({...prev,croppedDataUrl}));
+    setStage("back");
+  };
+
+  const handleBackChosen=async file=>{
+    const data=await readFile(file);
+    setBack(data); setStage("parsing");
     try {
-      const parsed=await parseRecipeCards(front.base64,front.type,back.base64,back.type);
-      const compressed=await compressImage(front.dataUrl);
+      const parsed=await parseRecipeCards(front.base64,front.type,data.base64,data.type);
+      const displaySrc=front.croppedDataUrl||front.dataUrl;
+      const compressed=await compressImage(displaySrc,1200,0.82);
       setRecipe({...parsed,id:Date.now(),addedAt:new Date().toISOString(),frontImage:compressed});
       setStage("review");
-    } catch(e){setError("Couldn't read the cards: "+e.message+". Make sure both images are clear.");setStage("upload");}
+    } catch(e){
+      setError("Could not read the cards: "+e.message);
+      setStage("error");
+    }
   };
-  return (
+
+  if(stage==="crop"&&front) return (
+    <CropModal imageDataUrl={front.dataUrl}
+      onConfirm={handleCropConfirm}
+      onRetake={()=>{setFront(null);setStage("front");}}/>
+  );
+
+  if(stage==="parsing") return (
+    <div style={{...base,minHeight:"100vh",background:C.paper}}>
+      <TopBar onBack={onBack} title="Scan Recipe Card"/>
+      <div style={{textAlign:"center",padding:"60px 24px"}}>
+        {front&&front.croppedDataUrl&&<img src={front.croppedDataUrl} alt="front" style={{height:140,borderRadius:10,boxShadow:"0 2px 12px rgba(0,0,0,0.1)",display:"block",margin:"0 auto 24px"}}/>}
+        <div style={{fontSize:20,fontWeight:700,marginBottom:10}}>Reading both sides...</div>
+        <div style={{color:C.muted,fontSize:14}}>Extracting ingredients and steps.</div>
+        <div style={{marginTop:20,display:"flex",gap:8,justifyContent:"center"}}>
+          {[0,1,2].map(i=><div key={i} style={{width:10,height:10,borderRadius:"50%",background:C.sage,animation:`pulse 1.4s ${i*0.2}s infinite`}}/>)}
+        </div>
+      </div>
+    </div>
+  );
+
+  if(stage==="review"&&recipe) return (
     <div style={{...base,minHeight:"100vh",background:C.paper}}>
       <TopBar onBack={onBack} title="Scan Recipe Card"/>
       <div style={{maxWidth:680,margin:"32px auto",padding:"0 24px"}}>
-        {stage==="upload"&&<>
-          <p style={{color:C.muted,fontSize:14,marginBottom:24,textAlign:"center"}}>Upload both sides — front for photo &amp; title, back for ingredients and steps.</p>
-          <div style={{display:"flex",gap:16,marginBottom:24}}>
-            <UploadZone id="upload-front" label="Front of card" data={front} onFileChosen={async f=>setFront(await readFile(f))}/>
-            <UploadZone id="upload-back" label="Back of card" data={back} onFileChosen={async f=>setBack(await readFile(f))}/>
-          </div>
-          {error&&<div style={{background:"#fff0ee",border:"1px solid #f5c0b0",borderRadius:8,padding:"12px 16px",color:"#b03020",fontSize:14,marginBottom:16}}>{error}</div>}
-          <button onClick={handleParse} disabled={!front||!back}
-            style={{...btnP,width:"100%",padding:14,fontSize:16,opacity:(!front||!back)?0.4:1,cursor:(!front||!back)?"default":"pointer"}}>Read Recipe Cards →</button>
-        </>}
-        {stage==="parsing"&&(
-          <div style={{textAlign:"center",padding:"60px 0"}}>
-            <div style={{display:"flex",gap:16,justifyContent:"center",marginBottom:32}}>
-              {front&&<img src={front.dataUrl} alt="front" style={{height:140,borderRadius:10,boxShadow:"0 2px 12px rgba(0,0,0,0.1)"}}/>}
-              {back&&<img src={back.dataUrl} alt="back" style={{height:140,borderRadius:10,boxShadow:"0 2px 12px rgba(0,0,0,0.1)"}}/>}
-            </div>
-            <div style={{fontSize:20,fontWeight:700,marginBottom:10}}>Reading both sides…</div>
-            <div style={{color:C.muted,fontSize:14}}>Extracting ingredients and steps.</div>
-            <div style={{marginTop:20,display:"flex",gap:8,justifyContent:"center"}}>
-              {[0,1,2].map(i=><div key={i} style={{width:10,height:10,borderRadius:"50%",background:C.sage,animation:`pulse 1.4s ${i*0.2}s infinite`}}/>)}
-            </div>
-          </div>
-        )}
-        {stage==="review"&&recipe&&<ReviewForm recipe={recipe} onSave={r=>onSaved(r)} onBack={()=>setStage("upload")}/>}
+        <ReviewForm recipe={recipe} onSave={r=>onSaved(r)} onBack={()=>setStage("front")}/>
+      </div>
+    </div>
+  );
+
+  if(stage==="error") return (
+    <div style={{...base,minHeight:"100vh",background:C.paper}}>
+      <TopBar onBack={onBack} title="Scan Recipe Card"/>
+      <div style={{maxWidth:480,margin:"60px auto",padding:"0 24px",textAlign:"center"}}>
+        <div style={{fontSize:40,marginBottom:16}}>!</div>
+        <div style={{fontSize:18,fontWeight:700,color:C.ink,marginBottom:8}}>Could not read the card</div>
+        <div style={{color:C.muted,fontSize:14,marginBottom:24}}>{error}</div>
+        <button onClick={()=>{setFront(null);setBack(null);setError(null);setStage("front");}} style={{...btnP,padding:"12px 28px",fontSize:15}}>Start Over</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{...base,minHeight:"100vh",background:C.paper}}>
+      <TopBar onBack={onBack} title="Scan Recipe Card"/>
+      <input ref={frontInputRef} type="file" accept="image/*" capture="environment" style={{display:"none"}}
+        onChange={e=>{if(e.target.files&&e.target.files[0])handleFrontChosen(e.target.files[0]);}}/>
+      <input ref={backInputRef} type="file" accept="image/*" capture="environment" style={{display:"none"}}
+        onChange={e=>{if(e.target.files&&e.target.files[0])handleBackChosen(e.target.files[0]);}}/>
+      <div style={{maxWidth:480,margin:"0 auto",padding:"60px 24px",textAlign:"center"}}>
+        <div style={{fontSize:64,marginBottom:20}}>{stage==="back"?"\ud83d\udcc4":"\ud83d\udcf7"}</div>
+        <div style={{fontSize:22,fontWeight:700,color:C.ink,marginBottom:8}}>
+          {stage==="back"?"Now scan the back":"Opening camera..."}
+        </div>
+        <div style={{fontSize:14,color:C.muted,marginBottom:32}}>
+          {stage==="back"?"Point at the ingredients and steps side":"Point at the front of the Dinnerly card"}
+        </div>
+        {stage==="front"&&<button onClick={()=>frontInputRef.current&&frontInputRef.current.click()} style={{...btnP,padding:"12px 28px",fontSize:16}}>Open Camera</button>}
+        {stage==="back"&&<button onClick={()=>backInputRef.current&&backInputRef.current.click()} style={{...btnP,padding:"12px 28px",fontSize:16}}>Open Camera</button>}
       </div>
     </div>
   );
@@ -537,7 +643,7 @@ function ReviewForm({recipe:initial,onSave,onBack}) {
   const updStep=(i,v)=>{const a=[...r.steps];a[i]=v;upd({steps:a});};
   return (
     <div>
-      <div style={{background:"#fff8f0",border:"1px solid #f0dcc8",borderRadius:10,padding:"12px 16px",fontSize:13,color:"#7a4020",marginBottom:24}}>✏️ Review and edit before saving.</div>
+      <div style={{background:"#fff8f0",border:"1px solid #f0dcc8",borderRadius:10,padding:"12px 16px",fontSize:13,color:"#7a4020",marginBottom:24}}>Review and edit before saving.</div>
       <input value={r.title} onChange={e=>upd({title:e.target.value})} style={{...inp,fontSize:20,fontWeight:700,marginBottom:12}}/>
       <div style={{display:"flex",gap:12,marginBottom:24}}>
         <div style={{flex:1}}><div style={{fontSize:11,fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:C.muted,marginBottom:5}}>Servings</div><input type="number" value={r.servings} onChange={e=>upd({servings:parseInt(e.target.value)||0})} style={inp}/></div>
@@ -547,7 +653,7 @@ function ReviewForm({recipe:initial,onSave,onBack}) {
       <div style={{marginBottom:16}}>
         {src.map((ing,i)=>(
           <div key={i} style={{display:"flex",gap:8,marginBottom:8,alignItems:"center"}}>
-            <span style={{color:C.sage,fontSize:14}}>●</span>
+            <span style={{color:C.sage,fontSize:14}}>&bull;</span>
             <input value={ing.qty} type="number" step="0.01" onChange={e=>updIng(i,"qty",parseFloat(e.target.value)||0)} style={{...inp,width:60}}/>
             <input value={ing.unit} onChange={e=>updIng(i,"unit",e.target.value)} placeholder="unit" style={{...inp,width:70}}/>
             <input value={ing.name} onChange={e=>updIng(i,"name",e.target.value)} placeholder="ingredient" style={{...inp,flex:1}}/>
@@ -563,7 +669,7 @@ function ReviewForm({recipe:initial,onSave,onBack}) {
       {r.tools&&r.tools.length>0&&<>
         <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>Tools</div>
         <div style={{marginBottom:16,display:"flex",flexWrap:"wrap",gap:8}}>
-          {r.tools.map((t,i)=><span key={i} style={{background:"#F0EDE8",color:C.muted,borderRadius:20,padding:"4px 12px",fontSize:13}}>🍳 {t}</span>)}
+          {r.tools.map((t,i)=><span key={i} style={{background:"#F0EDE8",color:C.muted,borderRadius:20,padding:"4px 12px",fontSize:13}}>{t}</span>)}
         </div>
       </>}
       <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginBottom:12,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>Steps ({r.steps.length})</div>
@@ -574,20 +680,19 @@ function ReviewForm({recipe:initial,onSave,onBack}) {
             <div style={{minWidth:28,height:28,borderRadius:"50%",background:"linear-gradient(135deg,#6B4FC8,#8B6DE0)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,flexShrink:0,marginTop:4}}>{i+1}</div>
             <div style={{flex:1,display:"flex",flexDirection:"column",gap:6}}>
               <input value={title} placeholder="Step title" onChange={e=>updStep(i,{title:e.target.value,body})} style={{...inp,fontWeight:700,fontSize:13}}/>
-              <textarea value={body} rows={2} placeholder="Instructions…" onChange={e=>updStep(i,{title,body:e.target.value})} style={{...inp,resize:"vertical",lineHeight:1.5}}/>
+              <textarea value={body} rows={2} placeholder="Instructions..." onChange={e=>updStep(i,{title,body:e.target.value})} style={{...inp,resize:"vertical",lineHeight:1.5}}/>
             </div>
           </div>
         );
       })}
       <div style={{display:"flex",gap:12,marginTop:28}}>
         <button onClick={()=>onSave(r)} style={{...btnP,flex:1,padding:13,fontSize:16}}>Save to Catalog</button>
-        <button onClick={onBack} style={{...btnG,padding:"13px 20px"}}>← Rescan</button>
+        <button onClick={onBack} style={{...btnG,padding:"13px 20px"}}>&larr; Rescan</button>
       </div>
     </div>
   );
 }
 
-// ── Ingredient Checklist ──────────────────────────────────────────────────────
 function IngredientChecklist({ingredients,onDone}) {
   const [checked,setChecked]=useState(()=>ingredients.map(()=>false));
   const [listening,setListening]=useState(false);
@@ -612,7 +717,7 @@ function IngredientChecklist({ingredients,onDone}) {
           {ingredients.map((ing,i)=>(
             <div key={i} className="checklist-item" onClick={()=>doCheck(i,!checked[i])} style={{display:"flex",alignItems:"center",gap:16,padding:"15px 24px",cursor:"pointer",borderBottom:i<ingredients.length-1?`1px solid ${C.border}`:"none",background:checked[i]?"#F0F8F2":"#fff",transition:"background 0.15s"}}>
               <div style={{width:34,height:34,borderRadius:9,flexShrink:0,border:checked[i]?"none":`2.5px solid ${C.border}`,background:checked[i]?C.sage:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.2s"}}>
-                {checked[i]&&<span style={{color:"#fff",fontSize:20,lineHeight:1}}>✓</span>}
+                {checked[i]&&<span style={{color:"#fff",fontSize:20,lineHeight:1}}>&checkmark;</span>}
               </div>
               <span style={{fontSize:19,lineHeight:1.35,color:checked[i]?C.muted:C.ink,textDecoration:checked[i]?"line-through":"none",transition:"all 0.2s"}}>{ing.display||ing.name}</span>
             </div>
@@ -621,22 +726,21 @@ function IngredientChecklist({ingredients,onDone}) {
         <div style={{padding:"16px 24px 20px",borderTop:`1px solid ${C.border}`,background:"#FAFAFA"}}>
           <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
             <button onClick={()=>setListening(v=>!v)} style={{border:"none",borderRadius:10,padding:"10px 16px",fontSize:14,cursor:"pointer",fontFamily:"inherit",fontWeight:600,transition:"all 0.2s",display:"flex",alignItems:"center",gap:8,background:listening?C.sage:C.sageLight,color:listening?"#fff":C.sageDark,boxShadow:listening?`0 0 0 3px rgba(74,124,89,0.25)`:"none"}}>
-              <span style={{fontSize:18}}>🎙</span>{listening?"Listening…":"Enable Voice"}
+              <span style={{fontSize:18}}>{"\ud83c\udf99"}</span>{listening?"Listening...":"Enable Voice"}
             </button>
-            {listening&&<div style={{fontSize:12,color:C.muted,lineHeight:1.4}}>Say <strong style={{color:C.sageDark}}>"what's left"</strong> or <strong style={{color:C.sageDark}}>"got that one"</strong></div>}
+            {listening&&<div style={{fontSize:12,color:C.muted,lineHeight:1.4}}>Say "what's left" or "got that one"</div>}
           </div>
-          {listening&&lastHeard&&<div style={{fontSize:12,color:C.muted,marginBottom:12,padding:"8px 12px",background:C.sageLight,borderRadius:6}}>🎙 Heard: <strong style={{color:C.ink}}>"{lastHeard}"</strong></div>}
+          {listening&&lastHeard&&<div style={{fontSize:12,color:C.muted,marginBottom:12,padding:"8px 12px",background:C.sageLight,borderRadius:6}}>Heard: <strong style={{color:C.ink}}>"{lastHeard}"</strong></div>}
           <button onClick={onDone} style={{...btnP,background:allDone?C.sage:C.orange,width:"100%",padding:15,fontSize:17,marginBottom:10}}>
-            {allDone?"✓ All Set — Start Cooking!":"Start Cooking →"}
+            {allDone?"All Set -- Start Cooking!":"Start Cooking"}
           </button>
-          <div style={{fontSize:12,color:C.muted,textAlign:"center"}}>Or say <strong>"ready to start cooking"</strong></div>
+          <div style={{fontSize:12,color:C.muted,textAlign:"center"}}>Or say "ready to start cooking"</div>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Category Picker Modal ─────────────────────────────────────────────────────
 function CategoryPicker({current,onSelect,onClose}) {
   return (
     <div style={{position:"fixed",inset:0,zIndex:300,background:"rgba(10,10,10,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
@@ -647,7 +751,7 @@ function CategoryPicker({current,onSelect,onClose}) {
             <div key={cat.id} onClick={()=>onSelect(cat.id)} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 20px",cursor:"pointer",background:cat.id===current?C.sageLight:"#fff",borderLeft:cat.id===current?`3px solid ${C.sage}`:"3px solid transparent",transition:"background 0.15s"}}>
               <span style={{fontSize:24}}>{cat.emoji}</span>
               <span style={{fontSize:16,fontWeight:cat.id===current?700:400,color:C.ink}}>{cat.label}</span>
-              {cat.id===current&&<span style={{marginLeft:"auto",color:C.sage,fontWeight:700}}>✓</span>}
+              {cat.id===current&&<span style={{marginLeft:"auto",color:C.sage,fontWeight:700}}>&checkmark;</span>}
             </div>
           ))}
         </div>
@@ -659,97 +763,39 @@ function CategoryPicker({current,onSelect,onClose}) {
   );
 }
 
-// ── Recipe Picker Modal (for planner) ────────────────────────────────────────
-function RecipePicker({recipes,current,onSelect,onClear,onClose}) {
-  const [search,setSearch]=useState("");
-  const filtered=recipes.filter(r=>r.title.toLowerCase().includes(search.toLowerCase()));
-  return (
-    <div style={{position:"fixed",inset:0,zIndex:300,background:"rgba(10,10,10,0.6)",display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
-      <div style={{background:"#fff",borderRadius:"20px 20px 0 0",width:"100%",maxWidth:600,maxHeight:"80vh",display:"flex",flexDirection:"column",boxShadow:"0 -8px 40px rgba(0,0,0,0.25)"}}>
-        <div style={{background:C.plum,padding:"16px 20px",borderRadius:"20px 20px 0 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <span style={{color:"#fff",fontWeight:700,fontSize:17}}>Pick a Recipe</span>
-          <button onClick={onClose} style={{background:"none",border:"none",color:"rgba(255,255,255,0.7)",fontSize:22,cursor:"pointer",lineHeight:1}}>×</button>
-        </div>
-        <div style={{padding:"12px 16px",borderBottom:`1px solid ${C.border}`}}>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search recipes…" style={{...inp,fontSize:14}} autoFocus/>
-        </div>
-        <div style={{overflowY:"auto",flex:1}}>
-          {current&&<div onClick={onClear} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 20px",cursor:"pointer",borderBottom:`1px solid ${C.border}`,background:"#FFF5F0"}}>
-            <span style={{fontSize:22}}>✕</span>
-            <span style={{fontSize:15,color:"#b03020",fontWeight:600}}>Remove this day</span>
-          </div>}
-          {filtered.length===0&&<div style={{padding:"40px 20px",textAlign:"center",color:C.muted,fontSize:14}}>No recipes match "{search}"</div>}
-          {filtered.map(r=>{
-            const cat=getCategoryInfo(detectCategory(r.title,r.category));
-            const isCurrent=r.id===current;
-            return (
-              <div key={r.id} onClick={()=>onSelect(r.id)} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 20px",cursor:"pointer",borderBottom:`1px solid ${C.border}`,background:isCurrent?C.sageLight:"#fff",transition:"background 0.15s"}}>
-                {r.frontImage
-                  ?<img src={r.frontImage} alt={r.title} style={{width:52,height:40,objectFit:"cover",borderRadius:8,background:"#eee",flexShrink:0}}/>
-                  :<div style={{width:52,height:40,borderRadius:8,background:C.sageLight,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{cat.emoji}</div>}
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:15,fontWeight:isCurrent?700:400,color:C.ink,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.title}</div>
-                  <div style={{fontSize:12,color:C.muted,marginTop:2}}>{cat.emoji} {cat.label}{r.totalTime?` · ⏱ ${r.totalTime}`:""}</div>
-                </div>
-                {isCurrent&&<span style={{color:C.sage,fontWeight:700,flexShrink:0}}>✓</span>}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Weekly Planner Screen ─────────────────────────────────────────────────────
 const DAYS=[
-  {key:"mon",label:"Monday"},
-  {key:"tue",label:"Tuesday"},
-  {key:"wed",label:"Wednesday"},
-  {key:"thu",label:"Thursday"},
-  {key:"fri",label:"Friday"},
-  {key:"sat",label:"Saturday"},
-  {key:"sun",label:"Sunday"},
+  {key:"mon",label:"Monday"},{key:"tue",label:"Tuesday"},{key:"wed",label:"Wednesday"},
+  {key:"thu",label:"Thursday"},{key:"fri",label:"Friday"},{key:"sat",label:"Saturday"},{key:"sun",label:"Sunday"},
 ];
 
 function PlannerScreen({recipes,schedule,onUpdateSchedule,onBack,onViewRecipe,onPickDay}) {
   const [showShop,setShowShop]=useState(false);
   const recipeMap=useMemo(()=>{const m={};recipes.forEach(r=>m[r.id]=r);return m;},[recipes]);
   const assignedCount=Object.values(schedule).filter(Boolean).length;
-
-  const clearDay=(day)=>{
-    const next={...schedule}; delete next[day]; onUpdateSchedule(next);
-  };
-
+  const clearDay=day=>{const next={...schedule};delete next[day];onUpdateSchedule(next);};
   if (showShop) return <ShoppingListScreen recipes={recipes} schedule={schedule} onBack={()=>setShowShop(false)}/>;
-
   return (
     <div style={{...base,minHeight:"100vh",background:C.paper}}>
       <div style={{background:C.plum,padding:"18px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <button onClick={onBack} style={{...btnD,padding:"7px 14px",fontSize:13}}>← Back</button>
+        <button onClick={onBack} style={{...btnD,padding:"7px 14px",fontSize:13}}>&larr; Back</button>
         <span style={{color:"#fff",fontWeight:700,fontSize:17}}>Weekly Planner</span>
-        <button onClick={()=>setShowShop(true)}
-          style={{...base,background:assignedCount>0?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.08)",color:"#fff",border:"1.5px solid rgba(255,255,255,0.3)",borderRadius:8,padding:"7px 14px",fontSize:13,cursor:"pointer",fontWeight:600}}>
-          🛒 List
+        <button onClick={()=>setShowShop(true)} style={{...base,background:assignedCount>0?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.08)",color:"#fff",border:"1.5px solid rgba(255,255,255,0.3)",borderRadius:8,padding:"7px 14px",fontSize:13,cursor:"pointer",fontWeight:600}}>
+          List
         </button>
       </div>
-
       {assignedCount>0&&(
         <div style={{background:"rgba(91,62,140,0.08)",borderBottom:`1px solid rgba(91,62,140,0.15)`,padding:"12px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <span style={{fontSize:13,color:C.plum,fontWeight:600}}>{assignedCount} of 7 meals planned</span>
-          <button onClick={()=>setShowShop(true)} style={{...base,background:C.plum,color:"#fff",border:"none",borderRadius:8,padding:"8px 18px",fontSize:13,cursor:"pointer",fontWeight:600}}>View Shopping List →</button>
+          <button onClick={()=>setShowShop(true)} style={{...base,background:C.plum,color:"#fff",border:"none",borderRadius:8,padding:"8px 18px",fontSize:13,cursor:"pointer",fontWeight:600}}>View Shopping List</button>
         </div>
       )}
-
       <div style={{maxWidth:700,margin:"0 auto",padding:"20px 16px",display:"flex",flexDirection:"column",gap:12}}>
         {DAYS.map(({key,label})=>{
-          const rid=schedule[key];
-          const r=rid?recipeMap[rid]:null;
+          const rid=schedule[key]; const r=rid?recipeMap[rid]:null;
           const cat=r?getCategoryInfo(detectCategory(r.title,r.category)):null;
           return (
-            <div key={key} className="day-card"
-              style={{background:C.card,borderRadius:14,border:`1.5px solid ${r?C.sageMid:C.border}`,overflow:"hidden",boxShadow:"0 1px 6px rgba(0,0,0,0.05)",transition:"all 0.18s"}}>
-              <div style={{display:"flex",alignItems:"center",gap:0}}>
+            <div key={key} className="day-card" style={{background:C.card,borderRadius:14,border:`1.5px solid ${r?C.sageMid:C.border}`,overflow:"hidden",boxShadow:"0 1px 6px rgba(0,0,0,0.05)",transition:"all 0.18s"}}>
+              <div style={{display:"flex",alignItems:"center"}}>
                 <div style={{width:100,padding:"16px 14px",background:r?C.sageLight:"#FAFAFA",borderRight:`1px solid ${r?C.sageMid:C.border}`,flexShrink:0}}>
                   <div style={{fontSize:13,fontWeight:700,color:r?C.sageDark:C.muted}}>{label}</div>
                 </div>
@@ -760,17 +806,17 @@ function PlannerScreen({recipes,schedule,onUpdateSchedule,onBack,onViewRecipe,on
                       :<div style={{width:56,height:44,borderRadius:8,background:C.sageLight,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>{cat.emoji}</div>}
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontSize:14,fontWeight:700,color:C.ink,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.title}</div>
-                      <div style={{fontSize:12,color:C.muted,marginTop:2}}>{cat.emoji} {cat.label}{r.totalTime?` · ⏱ ${r.totalTime}`:""}</div>
+                      <div style={{fontSize:12,color:C.muted,marginTop:2}}>{cat.emoji} {cat.label}{r.totalTime?` - ${r.totalTime}`:""}</div>
                     </div>
                     <div style={{display:"flex",gap:5,flexShrink:0}}>
-                      <button onClick={()=>onViewRecipe(r)} style={{...btnP,padding:"7px 10px",fontSize:12,whiteSpace:"nowrap"}}>▶ Cook</button>
-                      <button onClick={()=>onPickDay(key)} style={{...base,background:"rgba(91,62,140,0.1)",color:C.plum,border:`1px solid rgba(91,62,140,0.3)`,borderRadius:8,padding:"7px 9px",fontSize:14,cursor:"pointer",lineHeight:1}}>✏️</button>
-                      <button onClick={()=>clearDay(key)} style={{...base,background:"transparent",color:"#b03020",border:"1px solid #f5c0b0",borderRadius:8,padding:"7px 9px",fontSize:14,cursor:"pointer",lineHeight:1,fontWeight:700}}>✕</button>
+                      <button onClick={()=>onViewRecipe(r)} style={{...btnP,padding:"7px 10px",fontSize:12,whiteSpace:"nowrap"}}>Cook</button>
+                      <button onClick={()=>onPickDay(key)} style={{...base,background:"rgba(91,62,140,0.1)",color:C.plum,border:`1px solid rgba(91,62,140,0.3)`,borderRadius:8,padding:"7px 9px",fontSize:14,cursor:"pointer",lineHeight:1}}>{"\u270f\ufe0f"}</button>
+                      <button onClick={()=>clearDay(key)} style={{...base,background:"transparent",color:"#b03020",border:"1px solid #f5c0b0",borderRadius:8,padding:"7px 9px",fontSize:14,cursor:"pointer",lineHeight:1,fontWeight:700}}>&times;</button>
                     </div>
                   </div>
                 ):(
                   <div style={{flex:1,display:"flex",alignItems:"center",gap:10,padding:"16px 14px",cursor:"pointer",color:C.plum}} onClick={()=>onPickDay(key)}>
-                    <span style={{fontSize:22,opacity:0.5}}>＋</span>
+                    <span style={{fontSize:22,opacity:0.5}}>+</span>
                     <span style={{fontSize:14,fontWeight:600}}>Add a meal</span>
                   </div>
                 )}
@@ -783,112 +829,80 @@ function PlannerScreen({recipes,schedule,onUpdateSchedule,onBack,onViewRecipe,on
   );
 }
 
-// ── Shopping List Screen ──────────────────────────────────────────────────────
 function ShoppingListScreen({recipes,schedule,onBack}) {
   const {sent,needed,tools}=useMemo(()=>buildShoppingList(schedule,recipes),[schedule,recipes]);
   const totalItems=sent.length+needed.length;
-
   const [checked,setChecked]=useState(()=>loadShopChecked());
-  const toggle=key=>{
-    setChecked(prev=>{
-      const next={...prev,[key]:!prev[key]};
-      saveShopChecked(next);
-      return next;
-    });
-  };
+  const toggle=key=>{setChecked(prev=>{const next={...prev,[key]:!prev[key]};saveShopChecked(next);return next;});};
   const clearAll=()=>{saveShopChecked({});setChecked({});};
-
   const checkedCount=Object.values(checked).filter(Boolean).length;
   const assignedDays=DAYS.filter(d=>schedule[d.key]);
-
   if (totalItems===0) return (
     <div style={{...base,minHeight:"100vh",background:C.paper}}>
       <TopBar onBack={onBack} title="Shopping List"/>
       <div style={{textAlign:"center",padding:"80px 24px",color:C.muted}}>
-        <div style={{fontSize:52,marginBottom:16}}>🛒</div>
+        <div style={{fontSize:52,marginBottom:16}}>{"\ud83d\uded2"}</div>
         <div style={{fontSize:18,fontWeight:700,color:C.ink,marginBottom:8}}>No meals planned yet</div>
         <div style={{fontSize:14}}>Go back to the Weekly Planner and assign some recipes.</div>
       </div>
     </div>
   );
-
   return (
     <div style={{...base,minHeight:"100vh",background:C.paper}}>
       <div style={{background:C.plum,padding:"18px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <button onClick={onBack} style={{...btnD,padding:"7px 14px",fontSize:13}}>← Back</button>
+        <button onClick={onBack} style={{...btnD,padding:"7px 14px",fontSize:13}}>&larr; Back</button>
         <span style={{color:"#fff",fontWeight:700,fontSize:17}}>Shopping List</span>
         <button onClick={clearAll} style={{...base,background:"transparent",color:"rgba(255,255,255,0.6)",border:"none",fontSize:13,cursor:"pointer",padding:"7px 0"}}>Reset</button>
       </div>
-
-      {/* Week summary */}
       <div style={{background:"rgba(91,62,140,0.07)",borderBottom:`1px solid rgba(91,62,140,0.12)`,padding:"10px 20px"}}>
-        <div style={{fontSize:12,color:C.plum,fontWeight:600,marginBottom:6}}>This week's meals:</div>
+        <div style={{fontSize:12,color:C.plum,fontWeight:600,marginBottom:6}}>This week:</div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          {assignedDays.map(d=>{
-            const r=recipes.find(r=>r.id===schedule[d.key]);
-            return r?<span key={d.key} style={{fontSize:12,background:"rgba(91,62,140,0.12)",color:C.plum,borderRadius:20,padding:"3px 10px"}}><strong>{d.label.slice(0,3)}:</strong> {r.title}</span>:null;
-          })}
+          {assignedDays.map(d=>{const r=recipes.find(r=>r.id===schedule[d.key]);return r?<span key={d.key} style={{fontSize:12,background:"rgba(91,62,140,0.12)",color:C.plum,borderRadius:20,padding:"3px 10px"}}><strong>{d.label.slice(0,3)}:</strong> {r.title}</span>:null;})}
         </div>
       </div>
-
-      {/* Progress bar */}
       <div style={{padding:"12px 20px 0"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-          <span style={{fontSize:13,color:C.muted}}>{checkedCount} of {totalItems} items checked</span>
-          {checkedCount===totalItems&&totalItems>0&&<span style={{fontSize:13,color:C.sage,fontWeight:700}}>✓ All done!</span>}
+          <span style={{fontSize:13,color:C.muted}}>{checkedCount} of {totalItems} checked</span>
+          {checkedCount===totalItems&&totalItems>0&&<span style={{fontSize:13,color:C.sage,fontWeight:700}}>All done!</span>}
         </div>
         <div style={{height:5,background:C.border,borderRadius:3}}>
           <div style={{height:"100%",width:`${totalItems>0?(checkedCount/totalItems)*100:0}%`,background:C.sage,borderRadius:3,transition:"width 0.3s"}}/>
         </div>
       </div>
-
       <div style={{maxWidth:700,margin:"0 auto",padding:"16px"}}>
-        {/* What We Send — main ingredients */}
-        <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>
-          🛒 Ingredients to Buy ({sent.length})
-        </div>
+        <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>Ingredients to Buy ({sent.length})</div>
         {sent.map((item,i)=>{
-          const key=`sent-${item.name}-${item.unit}`;
-          const done=!!checked[key];
+          const key=`sent-${item.name}-${item.unit}`; const done=!!checked[key];
           return (
-            <div key={i} onClick={()=>toggle(key)} style={{display:"flex",alignItems:"center",gap:14,padding:"13px 4px",borderBottom:`1px solid ${C.border}`,cursor:"pointer",transition:"background 0.1s"}}>
+            <div key={i} onClick={()=>toggle(key)} style={{display:"flex",alignItems:"center",gap:14,padding:"13px 4px",borderBottom:`1px solid ${C.border}`,cursor:"pointer"}}>
               <div style={{width:30,height:30,borderRadius:8,flexShrink:0,border:done?"none":`2px solid ${C.border}`,background:done?C.sage:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.2s"}}>
-                {done&&<span style={{color:"#fff",fontSize:18,lineHeight:1}}>✓</span>}
+                {done&&<span style={{color:"#fff",fontSize:18,lineHeight:1}}>&checkmark;</span>}
               </div>
               <div style={{flex:1}}>
-                <span style={{fontSize:16,color:done?C.muted:C.ink,textDecoration:done?"line-through":"none",transition:"all 0.2s"}}>{item.display}</span>
+                <span style={{fontSize:16,color:done?C.muted:C.ink,textDecoration:done?"line-through":"none"}}>{item.display}</span>
                 {item.recipes&&item.recipes.length>1&&<div style={{fontSize:11,color:C.muted,marginTop:2}}>Used in {item.recipes.length} recipes</div>}
               </div>
             </div>
           );
         })}
-
-        {/* What You Need — pantry staples */}
         {needed.length>0&&<>
-          <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginTop:24,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>
-            🧂 Pantry Staples ({needed.length})
-          </div>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginTop:24,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>Pantry Staples ({needed.length})</div>
           {needed.map((item,i)=>{
-            const key=`needed-${item}`;
-            const done=!!checked[key];
+            const key=`needed-${item}`; const done=!!checked[key];
             return (
               <div key={i} onClick={()=>toggle(key)} style={{display:"flex",alignItems:"center",gap:14,padding:"13px 4px",borderBottom:`1px solid ${C.border}`,cursor:"pointer"}}>
                 <div style={{width:30,height:30,borderRadius:8,flexShrink:0,border:done?"none":`2px solid ${C.border}`,background:done?C.sage:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.2s"}}>
-                  {done&&<span style={{color:"#fff",fontSize:18,lineHeight:1}}>✓</span>}
+                  {done&&<span style={{color:"#fff",fontSize:18,lineHeight:1}}>&checkmark;</span>}
                 </div>
                 <span style={{fontSize:16,color:done?C.muted:C.ink,textDecoration:done?"line-through":"none"}}>{item}</span>
               </div>
             );
           })}
         </>}
-
-        {/* Tools */}
         {tools.length>0&&<>
-          <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginTop:24,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>
-            🍳 Tools You'll Need ({tools.length})
-          </div>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginTop:24,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>Tools ({tools.length})</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:8,paddingBottom:16}}>
-            {tools.map((t,i)=><span key={i} style={{background:"#F0EDE8",color:C.muted,borderRadius:20,padding:"6px 14px",fontSize:13}}>🍳 {t}</span>)}
+            {tools.map((t,i)=><span key={i} style={{background:"#F0EDE8",color:C.muted,borderRadius:20,padding:"6px 14px",fontSize:13}}>{t}</span>)}
           </div>
         </>}
       </div>
@@ -896,16 +910,12 @@ function ShoppingListScreen({recipes,schedule,onBack}) {
   );
 }
 
-// ── Detail Screen ─────────────────────────────────────────────────────────────
 function DetailScreen({recipe,onBack,onCook,onUpdatePhoto,onUpdateCategory,plannerPickDay,plannerDayLabel,onAddToPlanner}) {
   const [guestCount,setGuestCount]=useState(recipe.servings);
   const [scaledIng,setScaledIng]=useState(()=>scaleIngredients(recipe,recipe.servings));
   const [scaling,setScaling]=useState(false);
-  const [chat,setChat]=useState([]);
-  const [question,setQuestion]=useState("");
-  const [asking,setAsking]=useState(false);
-  const [showChecklist,setShowChecklist]=useState(false);
-  const [showCatPicker,setShowCatPicker]=useState(false);
+  const [chat,setChat]=useState([]); const [question,setQuestion]=useState(""); const [asking,setAsking]=useState(false);
+  const [showChecklist,setShowChecklist]=useState(false); const [showCatPicker,setShowCatPicker]=useState(false);
   const [photoHover,setPhotoHover]=useState(false);
   const photoInputRef=useRef(); const chatRef=useRef();
   const currentCat=getCategoryInfo(detectCategory(recipe.title,recipe.category));
@@ -931,8 +941,8 @@ function DetailScreen({recipe,onBack,onCook,onUpdatePhoto,onUpdateCategory,plann
   return (
     <div style={{...base,minHeight:"100vh",background:C.paper}}>
       <TopBar onBack={onBack} title={recipe.title} right={plannerPickDay
-        ?<button onClick={onAddToPlanner} style={{...btnP,background:C.plum,padding:"8px 18px",fontSize:14}}>📅 Add to {plannerDayLabel}</button>
-        :<button onClick={()=>setShowChecklist(true)} style={{...btnP,background:C.orange,padding:"8px 18px",fontSize:14}}>Cook →</button>}/>
+        ?<button onClick={onAddToPlanner} style={{...btnP,background:C.plum,padding:"8px 18px",fontSize:14}}>Add to {plannerDayLabel}</button>
+        :<button onClick={()=>setShowChecklist(true)} style={{...btnP,background:C.orange,padding:"8px 18px",fontSize:14}}>Cook</button>}/>
       <div style={{background:C.sageLight,padding:"8px 24px",display:"flex",alignItems:"center",gap:8}}>
         <span style={{fontSize:16}}>{currentCat.emoji}</span>
         <span style={{fontSize:13,color:C.sageDark,fontWeight:600}}>{currentCat.label}</span>
@@ -943,15 +953,15 @@ function DetailScreen({recipe,onBack,onCook,onUpdatePhoto,onUpdateCategory,plann
         {recipe.frontImage
           ?<img src={recipe.frontImage} alt={recipe.title} style={{width:"100%",height:"100%",objectFit:"contain"}}/>
           :<div style={{height:"100%",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:8}}>
-            <span style={{fontSize:40}}>📷</span><span style={{color:"rgba(255,255,255,0.5)",fontSize:14}}>Tap to add a photo</span>
+            <span style={{fontSize:40}}>{"\ud83d\udcf7"}</span><span style={{color:"rgba(255,255,255,0.5)",fontSize:14}}>Tap to add a photo</span>
           </div>}
         <div style={{position:"absolute",inset:0,background:"linear-gradient(to top,rgba(0,0,0,0.5) 0%,transparent 60%)"}}/>
         {recipe.totalTime&&<div style={{position:"absolute",bottom:16,left:24,color:"#fff",fontSize:11,opacity:0.8,letterSpacing:1,textTransform:"uppercase"}}>{recipe.totalTime}</div>}
         <div style={{position:"absolute",top:12,right:12,display:"flex",gap:8,opacity:photoHover?1:0,transition:"opacity 0.2s"}}>
           <label onClick={e=>e.stopPropagation()} style={{background:"rgba(0,0,0,0.6)",color:"#fff",borderRadius:8,padding:"6px 12px",fontSize:13,fontWeight:600,cursor:"pointer",backdropFilter:"blur(4px)"}}>
-            📷 Replace<input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{if(e.target.files?.[0])handlePhotoChange(e.target.files[0]);}}/>
+            Replace<input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{if(e.target.files?.[0])handlePhotoChange(e.target.files[0]);}}/>
           </label>
-          {recipe.frontImage&&<button onClick={e=>{e.stopPropagation();onUpdatePhoto(recipe.id,null);}} style={{background:"rgba(0,0,0,0.6)",color:"#fff",border:"none",borderRadius:8,padding:"6px 12px",fontSize:13,fontWeight:600,cursor:"pointer",backdropFilter:"blur(4px)"}}>🗑 Remove</button>}
+          {recipe.frontImage&&<button onClick={e=>{e.stopPropagation();onUpdatePhoto(recipe.id,null);}} style={{background:"rgba(0,0,0,0.6)",color:"#fff",border:"none",borderRadius:8,padding:"6px 12px",fontSize:13,fontWeight:600,cursor:"pointer",backdropFilter:"blur(4px)"}}>Remove</button>}
         </div>
         <input ref={photoInputRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{if(e.target.files?.[0])handlePhotoChange(e.target.files[0]);}}/>
       </div>
@@ -962,10 +972,10 @@ function DetailScreen({recipe,onBack,onCook,onUpdatePhoto,onUpdateCategory,plann
               <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>How many guests?</div>
               <div style={{fontSize:12,color:C.muted,marginBottom:14}}>Original serves {recipe.servings}</div>
               <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
-                <button onClick={()=>handleScale(Math.max(1,guestCount-1))} style={{...btnG,padding:"8px 14px",fontSize:18,lineHeight:1}}>−</button>
+                <button onClick={()=>handleScale(Math.max(1,guestCount-1))} style={{...btnG,padding:"8px 14px",fontSize:18,lineHeight:1}}>&minus;</button>
                 <input type="number" min={1} value={guestCount} onChange={e=>handleScale(parseInt(e.target.value)||1)} style={{...inp,width:70,textAlign:"center",fontSize:22,fontWeight:700,padding:8}}/>
-                <button onClick={()=>handleScale(guestCount+1)} style={{...btnG,padding:"8px 14px",fontSize:18,lineHeight:1}}>＋</button>
-                <span style={{fontSize:13,color:C.muted}}>{ratio!==1?`${ratio.toFixed(1)}× recipe`:"original"}</span>
+                <button onClick={()=>handleScale(guestCount+1)} style={{...btnG,padding:"8px 14px",fontSize:18,lineHeight:1}}>+</button>
+                <span style={{fontSize:13,color:C.muted}}>{ratio!==1?`${ratio.toFixed(1)}x`:"original"}</span>
               </div>
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                 {[2,4,6,8,12,20].map(n=>(
@@ -977,21 +987,20 @@ function DetailScreen({recipe,onBack,onCook,onUpdatePhoto,onUpdateCategory,plann
               <div style={{padding:"16px 20px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:`1px solid ${C.border}`}}>
                 <div>
                   <span style={{fontWeight:700,fontSize:15}}>Ingredients</span>
-                  {ratio!==1&&!scaling&&<span style={{fontSize:11,color:C.sage,fontWeight:600,marginLeft:8}}>Scaled ×{ratio.toFixed(1)}</span>}
-                  {scaling&&<span style={{fontSize:11,color:C.muted,marginLeft:8}}>Scaling…</span>}
+                  {ratio!==1&&!scaling&&<span style={{fontSize:11,color:C.sage,fontWeight:600,marginLeft:8}}>Scaled x{ratio.toFixed(1)}</span>}
                 </div>
                 <button onClick={()=>setShowChecklist(true)} style={{...btnP,padding:"6px 14px",fontSize:12}}>Gather List</button>
               </div>
               {scaledIng.map((ing,i)=>(
                 <div key={i} style={{display:"flex",gap:10,padding:"9px 20px",borderBottom:i<scaledIng.length-1?`1px solid ${C.border}`:"none",fontSize:14,color:C.ink}}>
-                  <span style={{color:C.sage,flexShrink:0,marginTop:2}}>●</span><span>{ing.display}</span>
+                  <span style={{color:C.sage,flexShrink:0,marginTop:2}}>&bull;</span><span>{ing.display}</span>
                 </div>
               ))}
               {(recipe.ingredientsNeeded||[]).length>0&&<>
                 <div style={{padding:"10px 20px 6px",fontSize:11,fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:C.muted,borderTop:`1px solid ${C.border}`,marginTop:4}}>You'll also need</div>
                 {(recipe.ingredientsNeeded||[]).map((n,i)=>(
                   <div key={i} style={{display:"flex",gap:10,padding:"7px 20px",borderBottom:i<(recipe.ingredientsNeeded.length-1)?`1px solid ${C.border}`:"none",fontSize:13,color:C.muted}}>
-                    <span style={{flexShrink:0,marginTop:2}}>○</span><span>{n}</span>
+                    <span style={{flexShrink:0,marginTop:2}}>o</span><span>{n}</span>
                   </div>
                 ))}
               </>}
@@ -1016,19 +1025,19 @@ function DetailScreen({recipe,onBack,onCook,onUpdatePhoto,onUpdateCategory,plann
               {chat.length>0&&(
                 <div ref={chatRef} style={{maxHeight:240,overflowY:"auto",marginBottom:12,display:"flex",flexDirection:"column",gap:10}}>
                   {chat.map((m,i)=>(<div key={i} style={{alignSelf:m.role==="user"?"flex-end":"flex-start",maxWidth:"85%",background:m.role==="user"?C.sage:C.sageLight,color:m.role==="user"?"#fff":C.ink,borderRadius:m.role==="user"?"12px 12px 4px 12px":"12px 12px 12px 4px",padding:"10px 14px",fontSize:13,lineHeight:1.5}}>{m.content}</div>))}
-                  {asking&&<div style={{alignSelf:"flex-start",background:C.sageLight,borderRadius:"12px 12px 12px 4px",padding:"10px 14px"}}><span style={{animation:"pulse 1s infinite",display:"inline-block"}}>●●●</span></div>}
+                  {asking&&<div style={{alignSelf:"flex-start",background:C.sageLight,borderRadius:"12px 12px 12px 4px",padding:"10px 14px"}}><span style={{animation:"pulse 1s infinite",display:"inline-block"}}>...</span></div>}
                 </div>
               )}
               <div style={{display:"flex",gap:8}}>
-                <input value={question} onChange={e=>setQuestion(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleAsk()} placeholder="Ask anything…" style={{...inp,flex:1,fontSize:13}}/>
+                <input value={question} onChange={e=>setQuestion(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleAsk()} placeholder="Ask anything..." style={{...inp,flex:1,fontSize:13}}/>
                 <button onClick={handleAsk} disabled={!question.trim()||asking} style={{...btnP,padding:"8px 16px",opacity:(!question.trim()||asking)?0.4:1}}>Ask</button>
               </div>
             </div>
           </div>
         </div>
         {plannerPickDay
-          ?<button onClick={onAddToPlanner} style={{...btnP,background:C.plum,width:"100%",padding:15,fontSize:17,marginTop:24}}>📅 Add to {plannerDayLabel} → Return to Planner</button>
-          :<button onClick={()=>setShowChecklist(true)} style={{...btnP,background:C.orange,width:"100%",padding:15,fontSize:17,marginTop:24}}>Gather Ingredients &amp; Cook →</button>}
+          ?<button onClick={onAddToPlanner} style={{...btnP,background:C.plum,width:"100%",padding:15,fontSize:17,marginTop:24}}>Add to {plannerDayLabel} and Return to Planner</button>
+          :<button onClick={()=>setShowChecklist(true)} style={{...btnP,background:C.orange,width:"100%",padding:15,fontSize:17,marginTop:24}}>Gather Ingredients &amp; Cook</button>}
       </div>
       {showChecklist&&<IngredientChecklist ingredients={scaledIng} onDone={handleDone}/>}
       {showCatPicker&&<CategoryPicker current={detectCategory(recipe.title,recipe.category)} onSelect={id=>{onUpdateCategory(recipe.id,id);setShowCatPicker(false);}} onClose={()=>setShowCatPicker(false)}/>}
@@ -1036,7 +1045,6 @@ function DetailScreen({recipe,onBack,onCook,onUpdatePhoto,onUpdateCategory,plann
   );
 }
 
-// ── Cook Screen ───────────────────────────────────────────────────────────────
 function CookScreen({recipe,guestCount,scaledIngredients,onBack}) {
   const [idx,setIdx]=useState(0); const [voiceOn,setVoiceOn]=useState(false); const [flash,setFlash]=useState(false);
   const [showIng,setShowIng]=useState(false); const [iosDis,setIosDis]=useState(false);
@@ -1048,18 +1056,17 @@ function CookScreen({recipe,guestCount,scaledIngredients,onBack}) {
   const step=recipe.steps[idx];
   const sTitle=typeof step==="object"?step.title:`Step ${idx+1}`;
   const sBody=typeof step==="object"?step.body:step;
-
   return (
     <div style={{...base,minHeight:"100vh",background:C.dark,color:"#F5F2ED",display:"flex",flexDirection:"column"}}>
       {isIOS&&!iosDis&&<div style={{background:"#7A4F00",padding:"10px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,fontSize:13}}>
-        <span>📱 Keep screen on: <strong>Settings → Display &amp; Brightness → Auto-Lock → Never</strong></span>
-        <button onClick={()=>setIosDis(true)} style={{background:"none",border:"none",color:"#fff",fontSize:20,cursor:"pointer",lineHeight:1}}>×</button>
+        <span>Keep screen on: Settings &gt; Display &amp; Brightness &gt; Auto-Lock &gt; Never</span>
+        <button onClick={()=>setIosDis(true)} style={{background:"none",border:"none",color:"#fff",fontSize:20,cursor:"pointer",lineHeight:1}}>&times;</button>
       </div>}
-      {wakeLockOk&&!isIOS&&<div style={{background:"rgba(74,124,89,0.25)",padding:"6px 16px",fontSize:12,color:C.sageMid,textAlign:"center"}}>🔒 Screen will stay on while cooking</div>}
+      {wakeLockOk&&!isIOS&&<div style={{background:"rgba(74,124,89,0.25)",padding:"6px 16px",fontSize:12,color:C.sageMid,textAlign:"center"}}>Screen will stay on while cooking</div>}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 22px"}}>
-        <button onClick={onBack} style={btnD}>← Detail</button>
-        <div style={{fontSize:13,color:"rgba(255,255,255,0.4)",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{recipe.title}{guestCount!==recipe.servings?` · ${guestCount} servings`:""}</div>
-        <button onClick={()=>setShowIng(!showIng)} style={btnD}>🧄</button>
+        <button onClick={onBack} style={btnD}>&larr; Detail</button>
+        <div style={{fontSize:13,color:"rgba(255,255,255,0.4)",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{recipe.title}{guestCount!==recipe.servings?` - ${guestCount} servings`:""}</div>
+        <button onClick={()=>setShowIng(!showIng)} style={btnD}>{"\ud83e\uddc4"}</button>
       </div>
       <div style={{height:3,background:"rgba(255,255,255,0.07)",margin:"0 22px"}}>
         <div style={{height:"100%",width:`${prog}%`,background:C.sage,transition:"width 0.4s ease",borderRadius:2}}/>
@@ -1079,23 +1086,23 @@ function CookScreen({recipe,guestCount,scaledIngredients,onBack}) {
         </div>
       </div>
       <div style={{padding:"20px 32px 36px",display:"flex",alignItems:"center",justifyContent:"center",gap:18}}>
-        <button onClick={()=>setIdx(i=>Math.max(i-1,0))} disabled={idx===0} style={{...btnD,opacity:idx===0?0.25:1,cursor:idx===0?"default":"pointer"}}>← Back</button>
-        <button onClick={()=>setVoiceOn(v=>!v)} style={{border:"none",borderRadius:"50%",width:62,height:62,fontSize:22,cursor:"pointer",transition:"all 0.2s",background:flash?C.sageMid:voiceOn?C.sage:"rgba(255,255,255,0.08)",transform:flash?"scale(1.15)":"scale(1)",boxShadow:voiceOn?`0 0 0 5px rgba(74,124,89,0.3)`:"none"}}>🎙</button>
-        <button onClick={goNext} disabled={isLast} style={{...btnP,background:isLast?"rgba(255,255,255,0.08)":C.orange,color:isLast?"rgba(255,255,255,0.25)":"#fff",padding:"12px 26px",fontSize:15,cursor:isLast?"default":"pointer"}}>{isLast?"Done ✓":"Next →"}</button>
+        <button onClick={()=>setIdx(i=>Math.max(i-1,0))} disabled={idx===0} style={{...btnD,opacity:idx===0?0.25:1,cursor:idx===0?"default":"pointer"}}>&larr; Back</button>
+        <button onClick={()=>setVoiceOn(v=>!v)} style={{border:"none",borderRadius:"50%",width:62,height:62,fontSize:22,cursor:"pointer",transition:"all 0.2s",background:flash?C.sageMid:voiceOn?C.sage:"rgba(255,255,255,0.08)",transform:flash?"scale(1.15)":"scale(1)",boxShadow:voiceOn?`0 0 0 5px rgba(74,124,89,0.3)`:"none"}}>{"\ud83c\udf99"}</button>
+        <button onClick={goNext} disabled={isLast} style={{...btnP,background:isLast?"rgba(255,255,255,0.08)":C.orange,color:isLast?"rgba(255,255,255,0.25)":"#fff",padding:"12px 26px",fontSize:15,cursor:isLast?"default":"pointer"}}>{isLast?"Done":"Next"}</button>
       </div>
       {voiceOn&&<div style={{background:"rgba(74,124,89,0.15)",borderTop:"1px solid rgba(74,124,89,0.3)",padding:"9px 16px",textAlign:"center",fontSize:13,color:C.sageMid}}>
-        🎙 Say <strong style={{color:"#F5F2ED"}}>"next step"</strong>, <strong style={{color:"#F5F2ED"}}>"ok what's next"</strong>, or <strong style={{color:"#F5F2ED"}}>"continue"</strong>
+        Say "next step", "ok what's next", or "continue"
       </div>}
-      {isLast&&<div style={{position:"fixed",bottom:100,left:"50%",transform:"translateX(-50%)",background:C.sage,color:"#fff",padding:"11px 22px",borderRadius:50,fontSize:15,fontWeight:600,pointerEvents:"none",boxShadow:"0 4px 20px rgba(74,124,89,0.4)"}}>🎉 Enjoy your meal!</div>}
+      {isLast&&<div style={{position:"fixed",bottom:100,left:"50%",transform:"translateX(-50%)",background:C.sage,color:"#fff",padding:"11px 22px",borderRadius:50,fontSize:15,fontWeight:600,pointerEvents:"none",boxShadow:"0 4px 20px rgba(74,124,89,0.4)"}}>Enjoy your meal!</div>}
       {showIng&&(
         <div style={{position:"fixed",top:0,right:0,height:"100vh",width:280,background:"#1E1E1E",borderLeft:"1px solid rgba(255,255,255,0.07)",overflowY:"auto",padding:"20px 18px",zIndex:100,boxShadow:"-8px 0 32px rgba(0,0,0,0.5)"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
-            <div><div style={{fontWeight:700,fontSize:15}}>Ingredients</div>{guestCount!==recipe.servings&&<div style={{fontSize:11,color:C.sageMid,marginTop:2}}>Scaled for {guestCount} servings</div>}</div>
-            <button onClick={()=>setShowIng(false)} style={{background:"none",border:"none",color:C.muted,fontSize:22,cursor:"pointer",lineHeight:1}}>×</button>
+            <div><div style={{fontWeight:700,fontSize:15}}>Ingredients</div>{guestCount!==recipe.servings&&<div style={{fontSize:11,color:C.sageMid,marginTop:2}}>Scaled for {guestCount}</div>}</div>
+            <button onClick={()=>setShowIng(false)} style={{background:"none",border:"none",color:C.muted,fontSize:22,cursor:"pointer",lineHeight:1}}>&times;</button>
           </div>
           {scaledIngredients.map((ing,i)=>(
             <div key={i} style={{padding:"9px 0",borderBottom:"1px solid rgba(255,255,255,0.05)",fontSize:13,color:"rgba(245,242,237,0.8)",display:"flex",gap:10}}>
-              <span style={{color:C.sageMid,flexShrink:0}}>●</span>{ing.display}
+              <span style={{color:C.sageMid,flexShrink:0}}>&bull;</span>{ing.display}
             </div>
           ))}
         </div>
@@ -1104,35 +1111,30 @@ function CookScreen({recipe,guestCount,scaledIngredients,onBack}) {
   );
 }
 
-// ── Seed data ─────────────────────────────────────────────────────────────────
 const SEED_RECIPE={
   id:1720000000000,addedAt:"2026-07-11T00:00:00.000Z",
   title:"Macaroni with Beef Bolognese Sauce & Shredded Cheese",
   servings:4,totalTime:"ca 20 min",frontImage:null,
   ingredients:[
-    {name:"elbow macaroni",qty:0.5,unit:"lb",display:"½ lb elbow macaroni"},
-    {name:"grass-fed ground beef",qty:0.5,unit:"lb",display:"½ lb grass-fed ground beef"},
+    {name:"elbow macaroni",qty:0.5,unit:"lb",display:"1/2 lb elbow macaroni"},
+    {name:"grass-fed ground beef",qty:0.5,unit:"lb",display:"1/2 lb grass-fed ground beef"},
     {name:"tomato sauce",qty:2,unit:"oz",display:"2 oz tomato sauce"},
-    {name:"beef broth concentrate",qty:1,unit:"pkt",display:"1 pkt beef broth concentrate"},
-    {name:"steak seasoning",qty:1,unit:"pkt",display:"1 pkt steak seasoning"},
     {name:"cream cheese",qty:2,unit:"oz",display:"2 oz cream cheese"},
     {name:"shredded cheddar jack blend",qty:2,unit:"oz",display:"2 oz shredded cheddar-jack blend"},
   ],
   ingredientsSent:[
-    {name:"elbow macaroni",qty:0.5,unit:"lb",display:"½ lb elbow macaroni"},
-    {name:"grass-fed ground beef",qty:0.5,unit:"lb",display:"½ lb grass-fed ground beef"},
+    {name:"elbow macaroni",qty:0.5,unit:"lb",display:"1/2 lb elbow macaroni"},
+    {name:"grass-fed ground beef",qty:0.5,unit:"lb",display:"1/2 lb grass-fed ground beef"},
     {name:"tomato sauce",qty:2,unit:"oz",display:"2 oz tomato sauce"},
-    {name:"beef broth concentrate",qty:1,unit:"pkt",display:"1 pkt beef broth concentrate"},
-    {name:"steak seasoning",qty:1,unit:"pkt",display:"1 pkt steak seasoning"},
     {name:"cream cheese",qty:2,unit:"oz",display:"2 oz cream cheese"},
     {name:"shredded cheddar jack blend",qty:2,unit:"oz",display:"2 oz shredded cheddar-jack blend"},
   ],
   ingredientsNeeded:["olive oil","kosher salt & ground pepper","sugar"],
   tools:["medium saucepan","large skillet"],
   steps:[
-    {title:"Cook pasta & beef",body:"Bring a medium saucepan of salted water to a boil. Add pasta, cook stirring until al dente, 8–9 minutes. Reserve 1 cup cooking water and drain. Cover to keep warm off heat. Meanwhile, heat 2 tbsp olive oil in a large skillet over medium-high heat. Add beef, cook breaking up into smaller pieces until well browned, 5–7 minutes."},
-    {title:"Build sauce",body:"To skillet with beef add all of the tomato sauce, broth concentrate, all of the steak seasoning, and ¼ tsp sugar. Bring to a simmer, then reduce heat to medium-low. Stir in all of the cream cheese and half of the shredded cheese until melted. Season to taste with salt and pepper."},
-    {title:"Add pasta & serve",body:"Add pasta to same skillet and stir until combined (if sauce is too thick, thin with 1 tablespoon remaining pasta water at a time, as needed). Serve macaroni and beef bolognese sauce with remaining cheese sprinkled over top. Enjoy!"},
+    {title:"Cook pasta & beef",body:"Bring a medium saucepan of salted water to a boil. Add pasta, cook stirring until al dente, 8-9 minutes. Reserve 1 cup cooking water and drain. Meanwhile, heat 2 tbsp olive oil in a large skillet over medium-high heat. Add beef, cook breaking up until well browned, 5-7 minutes."},
+    {title:"Build sauce",body:"To skillet with beef add tomato sauce, broth concentrate, steak seasoning, and 1/4 tsp sugar. Bring to a simmer, reduce heat. Stir in cream cheese and half the shredded cheese until melted. Season with salt and pepper."},
+    {title:"Add pasta & serve",body:"Add pasta to skillet and stir until combined, thinning with pasta water if needed. Serve with remaining cheese on top. Enjoy!"},
   ],
   nutrition:{calories:780,protein:"46g",carbs:"71g",fat:"30g"}
 };
@@ -1144,7 +1146,6 @@ function seedIfEmpty() {
 }
 seedIfEmpty();
 
-// ── App ───────────────────────────────────────────────────────────────────────
 function App() {
   const [hasKey,setHasKey]=useState(!!getApiKey());
   const [screen,setScreen]=useState("home");
@@ -1154,12 +1155,12 @@ function App() {
   const [active,setActive]=useState(null);
   const [showSettings,setShowSettings]=useState(false);
   const [exitPrompt,setExitPrompt]=useState(false);
-
-  const handleUpdateSchedule=s=>{setSchedule(s);saveSchedule(s);};
   const [plannerPickDay,setPlannerPickDay]=useState(null);
   const DAYS_MAP={mon:"Monday",tue:"Tuesday",wed:"Wednesday",thu:"Thursday",fri:"Friday",sat:"Saturday",sun:"Sunday"};
 
-  const handlePlannerPick=(recipeId)=>{
+  const handleUpdateSchedule=s=>{setSchedule(s);saveSchedule(s);};
+
+  const handlePlannerPick=recipeId=>{
     if(plannerPickDay){
       const next={...schedule,[plannerPickDay]:recipeId};
       handleUpdateSchedule(next);
@@ -1176,10 +1177,7 @@ function App() {
         if(plannerPickDay){setScreen("recipelist");return;}
         setScreen(active?.fromPlanner?"planner":"recipelist");return;
       }
-      if(screen==="recipelist"){
-        if(plannerPickDay){setScreen("catalog");return;}
-        setScreen("catalog");return;
-      }
+      if(screen==="recipelist"){setScreen("catalog");return;}
       if(screen==="catalog"){
         if(plannerPickDay){setPlannerPickDay(null);setScreen("planner");return;}
         setScreen("home");return;
@@ -1201,18 +1199,17 @@ function App() {
   const handleDelete=id=>{const next=recipes.filter(r=>r.id!==id);setRecipes(next);saveRecipes(next);};
   const handleUpdatePhoto=(id,img)=>{const next=recipes.map(r=>r.id===id?{...r,frontImage:img}:r);setRecipes(next);saveRecipes(next);if(active?.recipe?.id===id)setActive(p=>({...p,recipe:{...p.recipe,frontImage:img}}));};
   const handleUpdateCategory=(id,catId)=>{const next=recipes.map(r=>r.id===id?{...r,category:catId}:r);setRecipes(next);saveRecipes(next);if(active?.recipe?.id===id)setActive(p=>({...p,recipe:{...p.recipe,category:catId}}));};
-
   const goToRecipe=(r,fromPlanner=false)=>{setActive({recipe:r,guestCount:r.servings,scaledIngredients:scaleIngredients(r,r.servings),fromPlanner});setScreen("detail");};
 
   const pickBanner=plannerPickDay?(
     <div style={{background:C.plum,padding:"10px 20px",display:"flex",alignItems:"center",gap:10}}>
-      <span style={{fontSize:14,color:"rgba(255,255,255,0.8)"}}>📅 Picking meal for</span>
+      <span style={{fontSize:14,color:"rgba(255,255,255,0.8)"}}>Picking meal for</span>
       <span style={{fontSize:14,fontWeight:700,color:"#fff"}}>{DAYS_MAP[plannerPickDay]}</span>
       <button onClick={()=>{setPlannerPickDay(null);setScreen("planner");}} style={{marginLeft:"auto",background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:6,padding:"4px 12px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
     </div>
   ):null;
 
-  if(!hasKey||showSettings) return <ApiKeyScreen onSaved={()=>{setHasKey(true);setShowSettings(false);}}/>
+  if(!hasKey||showSettings) return <ApiKeyScreen onSaved={()=>{setHasKey(true);setShowSettings(false);}}/>;
   if(screen==="scan") return <ScanScreen onBack={()=>setScreen(activeCategory?"recipelist":"catalog")} onSaved={handleSaved}/>;
   if(screen==="detail"&&active?.recipe) return (
     <DetailScreen recipe={active.recipe}
@@ -1254,9 +1251,7 @@ function App() {
 
   return (
     <>
-      <HomeScreen
-        recipes={recipes}
-        schedule={schedule}
+      <HomeScreen recipes={recipes} schedule={schedule}
         onCatalog={()=>setScreen("catalog")}
         onPlanner={()=>setScreen("planner")}
         onAdd={()=>{setActiveCategory(null);setScreen("scan");}}
