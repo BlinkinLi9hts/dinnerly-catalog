@@ -258,8 +258,16 @@ function useChecklistVoice({active,ingredients,checked,onCheck,onGotAll,onHeard}
         if(ni!==-1){onCheck(ni,true);const rem=ingredients.filter((_,i)=>i!==ni&&!checked[i]);rem.length===0?speak("That's everything! Say ready to cook."):speak("Got it. "+rem.length+" left. Next: "+(rem[0].display||rem[0].name)+".");}
         return;
       }
-      const mi=ingredients.findIndex((ing,i)=>!checked[i]&&(ing.name||"").toLowerCase().split(/\s+/).some(w=>w.length>2&&t.includes(w)));
-      if(mi!==-1){onCheck(mi,true);const rem=ingredients.filter((_,i)=>i!==mi&&!checked[i]);speak(rem.length===0?"That's the last one!":"Got it. "+rem.length+" left.");}
+      // Free-form quantity query: "how much X" or "how many X"
+      const isHowMuch=/how (much|many)/.test(t);
+      const mi=ingredients.findIndex((ing,i)=>{
+        const words=(ing.name||"").toLowerCase().split(/\s+/).filter(w=>w.length>2);
+        return words.some(w=>t.includes(w))&&(isHowMuch||!checked[i]);
+      });
+      if(mi!==-1){
+        if(isHowMuch){speak(ingredients[mi].display||ingredients[mi].name);return;}
+        onCheck(mi,true);const rem=ingredients.filter((_,i)=>i!==mi&&!checked[i]);speak(rem.length===0?"That's the last one!":"Got it. "+rem.length+" left.");
+      }
     };
     rec.onend=()=>{if(active)try{rec.start();}catch{}};
     try{rec.start();}catch{}
