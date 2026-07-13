@@ -229,11 +229,12 @@ function useVoice(onNext,active) {
   useEffect(()=>{
     const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
     if (!SR||!active) return;
+    let stopped=false;
     const rec=new SR(); rec.continuous=true; rec.interimResults=false; rec.lang="en-US";
     rec.onresult=e=>{const t=e.results[e.results.length-1][0].transcript.toLowerCase().trim(); if(NEXT_PHRASES.some(p=>t.includes(p)))onNext();};
-    rec.onend=()=>{if(ref.current)try{rec.start();}catch{}};
+    rec.onend=()=>{if(!stopped&&ref.current)try{rec.start();}catch{}};
     try{rec.start();}catch{}
-    return()=>{try{rec.stop();}catch{}};
+    return()=>{stopped=true;try{rec.stop();}catch{}};
   },[active]);
 }
 
@@ -242,6 +243,7 @@ function useChecklistVoice({active,ingredients,checked,onCheck,onGotAll,onHeard}
   useEffect(()=>{
     const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
     if (!SR||!active) return;
+    let stopped=false;
     const rec=new SR(); rec.continuous=true; rec.interimResults=false; rec.lang="en-US";
     rec.onresult=e=>{
       const t=e.results[e.results.length-1][0].transcript.toLowerCase().trim();
@@ -269,9 +271,9 @@ function useChecklistVoice({active,ingredients,checked,onCheck,onGotAll,onHeard}
         onCheck(mi,true);const rem=ingredients.filter((_,i)=>i!==mi&&!checked[i]);speak(rem.length===0?"That's the last one!":"Got it. "+rem.length+" left.");
       }
     };
-    rec.onend=()=>{if(active)try{rec.start();}catch{}};
+    rec.onend=()=>{if(!stopped)try{rec.start();}catch{}};
     try{rec.start();}catch{}
-    return()=>{try{rec.stop();}catch{}};
+    return()=>{stopped=true;stopSpeaking();try{rec.stop();}catch{}};
   },[active]);
 }
 
