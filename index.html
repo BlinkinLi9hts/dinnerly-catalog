@@ -756,23 +756,22 @@ function ScanScreen({onBack,onSaved}) {
     </div>
   );
 
+  // stage === "front" — show viewfinder
+  if(stage==="front") return (
+    <ViewfinderCapture onCapture={handleFrontCaptured} onCancel={onBack}/>
+  );
+
+  // stage === "back" — regular camera
   return (
     <div style={{...base,minHeight:"100vh",background:C.paper}}>
-      <TopBar onBack={onBack} title="Scan Recipe Card"/>
-      <input ref={frontInputRef} type="file" accept="image/*" capture="environment" style={{display:"none"}}
-        onChange={e=>{if(e.target.files&&e.target.files[0])handleFrontChosen(e.target.files[0]);}}/>
+      <TopBar onBack={()=>setStage("front")} title="Scan Recipe Card"/>
       <input ref={backInputRef} type="file" accept="image/*" capture="environment" style={{display:"none"}}
         onChange={e=>{if(e.target.files&&e.target.files[0])handleBackChosen(e.target.files[0]);}}/>
       <div style={{maxWidth:480,margin:"0 auto",padding:"60px 24px",textAlign:"center"}}>
-        <div style={{fontSize:64,marginBottom:20}}>{stage==="back"?"\ud83d\udcc4":"\ud83d\udcf7"}</div>
-        <div style={{fontSize:22,fontWeight:700,color:C.ink,marginBottom:8}}>
-          {stage==="back"?"Now scan the back":"Opening camera..."}
-        </div>
-        <div style={{fontSize:14,color:C.muted,marginBottom:32}}>
-          {stage==="back"?"Point at the ingredients and steps side":"Point at the front of the Dinnerly card"}
-        </div>
-        {stage==="front"&&<button onClick={()=>frontInputRef.current&&frontInputRef.current.click()} style={{...btnP,padding:"12px 28px",fontSize:16}}>Open Camera</button>}
-        {stage==="back"&&<button onClick={()=>backInputRef.current&&backInputRef.current.click()} style={{...btnP,padding:"12px 28px",fontSize:16}}>Open Camera</button>}
+        <div style={{fontSize:64,marginBottom:20}}>\ud83d\udcc4</div>
+        <div style={{fontSize:22,fontWeight:700,color:C.ink,marginBottom:8}}>Now scan the back</div>
+        <div style={{fontSize:14,color:C.muted,marginBottom:32}}>Point at the ingredients and steps side</div>
+        <button onClick={()=>backInputRef.current&&backInputRef.current.click()} style={{...btnP,padding:"12px 28px",fontSize:16}}>Open Camera</button>
       </div>
     </div>
   );
