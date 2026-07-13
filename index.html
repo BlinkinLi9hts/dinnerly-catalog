@@ -1207,19 +1207,75 @@ function seedIfEmpty() {
 }
 seedIfEmpty();
 
+function SecretScreen({onSaved}) {
+  const [secret,setSecret]=useState(""); const [err,setErr]=useState(""); const [testing,setTesting]=useState(false); const [show,setShow]=useState(false);
+  const save=async()=>{
+    const s=secret.trim();
+    if(!s){setErr("Please enter the shared password");return;}
+    setTesting(true);setErr("");
+    try {
+      // Test write access
+      const res=await fetch("/api/recipes",{method:"POST",headers:{"Content-Type":"application/json","X-Dinnerly-Secret":s},body:JSON.stringify(null)});
+      if(res.status===401){setErr("Wrong password");setTesting(false);return;}
+      onSaved(s);
+    } catch(e){setErr("Could not connect: "+e.message);}
+    setTesting(false);
+  };
+  return (
+    <div style={{...base,minHeight:"100vh",background:C.paper,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+      <div style={{background:C.card,borderRadius:16,padding:32,maxWidth:480,width:"100%",boxShadow:"0 4px 32px rgba(0,0,0,0.08)"}}>
+        <div style={{fontSize:28,fontWeight:700,color:C.plum,marginBottom:6}}>Dinnerly</div>
+        <div style={{fontSize:14,color:C.muted,marginBottom:24}}>Enter the shared catalog password</div>
+        <div style={{fontSize:13,color:C.muted,marginBottom:16,lineHeight:1.5}}>This is the <strong>DINNERLY_SECRET</strong> you set in Cloudflare. Same for all devices.</div>
+        <div style={{position:"relative",marginBottom:16}}>
+          <input type={show?"text":"password"} value={secret} onChange={e=>setSecret(e.target.value)} onKeyDown={e=>e.key==="Enter"&&save()}
+            placeholder="your shared password" style={{...inp,fontSize:15,paddingRight:48}} autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck="false"/>
+          <button onClick={()=>setShow(v=>!v)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:18,color:C.muted}}>{show?"🙈":"👁"}</button>
+        </div>
+        {err&&<div style={{color:"#b03020",fontSize:13,marginBottom:12,padding:"10px 12px",background:"#fff0ee",borderRadius:6}}>{err}</div>}
+        <button onClick={save} disabled={testing||!secret.trim()} style={{...btnP,background:C.plum,width:"100%",padding:14,fontSize:16,opacity:(testing||!secret.trim())?0.5:1}}>{testing?"Checking...":"Connect"}</button>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [hasKey,setHasKey]=useState(!!getApiKey());
+  const [hasSecret,setHasSecret]=useState(!!getDinnSecret());
   const [screen,setScreen]=useState("home");
   const [activeCategory,setActiveCategory]=useState(null);
-  const [recipes,setRecipes]=useState(()=>loadRecipes());
-  const [schedule,setSchedule]=useState(()=>loadSchedule());
+  const [recipes,setRecipes]=useState([]);
+  const [schedule,setSchedule]=useState({});
   const [active,setActive]=useState(null);
   const [showSettings,setShowSettings]=useState(false);
   const [exitPrompt,setExitPrompt]=useState(false);
   const [plannerPickDay,setPlannerPickDay]=useState(null);
+  const [loading,setLoading]=useState(true);
+  const [saveStatus,setSaveStatus]=useState(null);
+  const [migrationPending,setMigrationPending]=useState(false);
   const DAYS_MAP={mon:"Monday",tue:"Tuesday",wed:"Wednesday",thu:"Thursday",fri:"Friday",sat:"Saturday",sun:"Sunday"};
 
-  const handleUpdateSchedule=s=>{setSchedule(s);saveSchedule(s);};
+  useEffect(()=>{
+    if(!hasKey||!hasSecret){setLoading(false);return;}
+    setLoading(true);
+    Promise.all([loadRecipes(),loadSchedule()]).then(([r,s])=>{
+      setRecipes(r||[]);
+      setSchedule(s||{});
+      const localR=getLocalRecipes();
+      if(localR.length>0&&(r||[]).length===0) setMigrationPending(true);
+      setLoading(false);
+    }).catch(()=>setLoading(false));
+  },[hasKey,hasSecret]);
+
+  const showSave=status=>{
+    setSaveStatus(status);
+    if(status==="saved"||status==="error") setTimeout(()=>setSaveStatus(null),2500);
+  };
+
+  const handleUpdateSchedule=async s=>{
+    setSchedule(s); showSave("saving");
+    try{await saveSchedule(s);showSave("saved");}catch{showSave("error");}
+  };
 
   const handlePlannerPick=recipeId=>{
     if(plannerPickDay){
@@ -1228,6 +1284,16 @@ function App() {
       setPlannerPickDay(null);
       setScreen("planner");
     }
+  };
+
+  const handleMigrate=async()=>{
+    const localR=getLocalRecipes(); const localS=getLocalSchedule();
+    showSave("saving");
+    try{
+      await saveRecipes(localR); await saveSchedule(localS);
+      setRecipes(localR); setSchedule(localS);
+      clearLocalData(); setMigrationPending(false); showSave("saved");
+    }catch{showSave("error");}
   };
 
   useEffect(()=>{
@@ -1256,9 +1322,113 @@ function App() {
 
   useEffect(()=>{window.history.pushState(null,"",window.location.href);},[screen]);
 
-  const handleSaved=r=>{const next=[r,...recipes];setRecipes(next);saveRecipes(next);setScreen(activeCategory?"recipelist":"catalog");};
-  const handleDelete=id=>{const next=recipes.filter(r=>r.id!==id);setRecipes(next);saveRecipes(next);};
-  const handleUpdatePhoto=(id,img)=>{const next=recipes.map(r=>r.id===id?{...r,frontImage:img}:r);setRecipes(next);saveRecipes(next);if(active?.recipe?.id===id)setActive(p=>({...p,recipe:{...p.recipe,frontImage:img}}));};
+  const handleSaved=async r=>{
+    const next=[r,...recipes]; setRecipes(next); showSave("saving");
+    try{await saveRecipes(next);showSave("saved");}catch{showSave("error");}
+    setScreen(activeCategory?"recipelist":"catalog");
+  };
+  const handleDelete=async id=>{
+    const next=recipes.filter(r=>r.id!==id); setRecipes(next); showSave("saving");
+    try{await saveRecipes(next);showSave("saved");}catch{showSave("error");}
+  };
+  const handleUpdatePhoto=async(id,img)=>{
+    const next=recipes.map(r=>r.id===id?{...r,frontImage:img}:r); setRecipes(next);
+    if(active?.recipe?.id===id)setActive(p=>({...p,recipe:{...p.recipe,frontImage:img}}));
+    showSave("saving");
+    try{await saveRecipes(next);showSave("saved");}catch{showSave("error");}
+  };
+  const handleUpdateCategory=async(id,catId)=>{
+    const next=recipes.map(r=>r.id===id?{...r,category:catId}:r); setRecipes(next);
+    if(active?.recipe?.id===id)setActive(p=>({...p,recipe:{...p.recipe,category:catId}}));
+    showSave("saving");
+    try{await saveRecipes(next);showSave("saved");}catch{showSave("error");}
+  };
+  const goToRecipe=(r,fromPlanner=false)=>{setActive({recipe:r,guestCount:r.servings,scaledIngredients:scaleIngredients(r,r.servings),fromPlanner});setScreen("detail");};
+
+  const pickBanner=plannerPickDay?(
+    <div style={{background:C.plum,padding:"10px 20px",display:"flex",alignItems:"center",gap:10}}>
+      <span style={{fontSize:14,color:"rgba(255,255,255,0.8)"}}>Picking meal for</span>
+      <span style={{fontSize:14,fontWeight:700,color:"#fff"}}>{DAYS_MAP[plannerPickDay]}</span>
+      <button onClick={()=>{setPlannerPickDay(null);setScreen("planner");}} style={{marginLeft:"auto",background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:6,padding:"4px 12px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+    </div>
+  ):null;
+
+  const saveToast=saveStatus?(
+    <div style={{position:"fixed",bottom:32,right:24,background:saveStatus==="error"?"#b03020":saveStatus==="saving"?"#555":C.sage,color:"#fff",padding:"10px 18px",borderRadius:50,fontSize:13,fontWeight:600,zIndex:999,boxShadow:"0 2px 12px rgba(0,0,0,0.2)"}}>
+      {saveStatus==="saving"?"Saving...":saveStatus==="saved"?"Saved":"Save failed"}
+    </div>
+  ):null;
+
+  if(!hasKey||showSettings) return <ApiKeyScreen onSaved={()=>{setHasKey(true);setShowSettings(false);}}/>;
+  if(!hasSecret) return <SecretScreen onSaved={s=>{setDinnSecret(s);setHasSecret(true);}}/>;
+
+  if(loading) return (
+    <div style={{...base,minHeight:"100vh",background:C.paper,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16}}>
+      <div style={{fontSize:32}}>&#127860;</div>
+      <div style={{fontSize:16,color:C.muted}}>Loading your recipes...</div>
+      <div style={{display:"flex",gap:8}}>{[0,1,2].map(i=><div key={i} style={{width:10,height:10,borderRadius:"50%",background:C.sage,animation:`pulse 1.4s ${i*0.2}s infinite`}}/>)}</div>
+    </div>
+  );
+
+  if(screen==="scan") return <ScanScreen onBack={()=>setScreen(activeCategory?"recipelist":"catalog")} onSaved={handleSaved}/>;
+  if(screen==="detail"&&active?.recipe) return (
+    <DetailScreen recipe={active.recipe}
+      onBack={()=>{if(plannerPickDay){setScreen("recipelist");}else{setScreen(active?.fromPlanner?"planner":"recipelist");}}}
+      onUpdatePhoto={handleUpdatePhoto} onUpdateCategory={handleUpdateCategory}
+      plannerPickDay={plannerPickDay}
+      plannerDayLabel={plannerPickDay?DAYS_MAP[plannerPickDay]:null}
+      onAddToPlanner={()=>handlePlannerPick(active.recipe.id)}
+      onCook={(r,g,s)=>{setActive(p=>({...p,recipe:r,guestCount:g,scaledIngredients:s}));setScreen("cook");}}/>
+  );
+  if(screen==="cook"&&active?.recipe) return (
+    <CookScreen recipe={active.recipe} guestCount={active.guestCount} scaledIngredients={active.scaledIngredients} onBack={()=>setScreen("detail")}/>
+  );
+  if(screen==="recipelist"&&activeCategory) return (
+    <>{pickBanner}
+      <RecipeListScreen recipes={recipes} categoryId={activeCategory}
+        onBack={()=>setScreen("catalog")}
+        onSelect={r=>goToRecipe(r,false)}
+        onDelete={handleDelete} onAdd={()=>setScreen("scan")}/>
+    </>
+  );
+  if(screen==="catalog") return (
+    <>{pickBanner}
+      <CategoryScreen recipes={recipes}
+        onBack={()=>{if(plannerPickDay){setPlannerPickDay(null);setScreen("planner");}else{setScreen("home");}}}
+        onSelectCategory={id=>{setActiveCategory(id);setScreen("recipelist");}}
+        onAdd={()=>setScreen("scan")}/>
+    </>
+  );
+  if(screen==="planner") return (
+    <PlannerScreen recipes={recipes} schedule={schedule}
+      onUpdateSchedule={handleUpdateSchedule}
+      onBack={()=>setScreen("home")}
+      onViewRecipe={r=>goToRecipe(r,true)}
+      onPickDay={day=>{setPlannerPickDay(day);setActiveCategory(null);setScreen("catalog");}}/>
+  );
+
+  return (
+    <>
+      <HomeScreen recipes={recipes} schedule={schedule}
+        onCatalog={()=>setScreen("catalog")}
+        onPlanner={()=>setScreen("planner")}
+        onAdd={()=>{setActiveCategory(null);setScreen("scan");}}
+        onSettings={()=>setShowSettings(true)}/>
+      {migrationPending&&(
+        <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:C.card,borderRadius:16,padding:"20px 24px",boxShadow:"0 8px 40px rgba(0,0,0,0.2)",zIndex:999,maxWidth:400,width:"calc(100% - 48px)"}}>
+          <div style={{fontSize:15,fontWeight:700,color:C.ink,marginBottom:6}}>Local recipes found</div>
+          <div style={{fontSize:13,color:C.muted,marginBottom:16}}>You have {getLocalRecipes().length} recipes stored locally on this device. Upload them to the cloud so all devices can access them.</div>
+          <div style={{display:"flex",gap:10}}>
+            <button onClick={handleMigrate} style={{...btnP,flex:1,padding:"10px",fontSize:14}}>Upload to Cloud</button>
+            <button onClick={()=>setMigrationPending(false)} style={{...btnG,padding:"10px 16px",fontSize:14}}>Dismiss</button>
+          </div>
+        </div>
+      )}
+      {exitPrompt&&<div style={{position:"fixed",bottom:40,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,0.8)",color:"#fff",padding:"12px 24px",borderRadius:50,fontSize:15,fontWeight:600,zIndex:999,whiteSpace:"nowrap"}}>Tap back again to exit</div>}
+      {saveToast}
+    </>
+  );
+}
   const handleUpdateCategory=(id,catId)=>{const next=recipes.map(r=>r.id===id?{...r,category:catId}:r);setRecipes(next);saveRecipes(next);if(active?.recipe?.id===id)setActive(p=>({...p,recipe:{...p.recipe,category:catId}}));};
   const goToRecipe=(r,fromPlanner=false)=>{setActive({recipe:r,guestCount:r.servings,scaledIngredients:scaleIngredients(r,r.servings),fromPlanner});setScreen("detail");};
 
