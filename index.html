@@ -1502,12 +1502,22 @@ function CookScreen({recipe,guestCount,scaledIngredients,onBack}) {
 
 
 function BattleScreen({recipes,onBack,onConfirm}) {
-  const [stage,setStage]=useState("setup"); // setup | battle | results
+  const [stage,setStage]=useState("setup");
   const [numDays,setNumDays]=useState(4);
   const [matchups,setMatchups]=useState([]);
   const [round,setRound]=useState(0);
   const [winners,setWinners]=useState([]);
   const [chosen,setChosen]=useState(null);
+  const [assignedDays,setAssignedDays]=useState([]);
+  const dayKeys=["mon","tue","wed","thu","fri","sat","sun"];
+  const dayShort=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+
+  useEffect(()=>{
+    if(winners.length>0) setAssignedDays(winners.map((_,i)=>dayKeys[i]||"mon"));
+  },[winners]);
+
+  const updateDay=(wi,day)=>setAssignedDays(prev=>{const n=[...prev];n[wi]=day;return n;});
+  const cat=r=>getCategoryInfo(detectCategory(r.title,r.category));
 
   const startBattle=()=>{
     // Shuffle recipes and pick numDays*2 (or as many as available)
