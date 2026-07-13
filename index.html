@@ -231,6 +231,20 @@ const CATEGORIES=[
   {id:"other",   label:"Other",   emoji:"\ud83c\udf7d\ufe0f", keywords:[]},
 ];
 
+// Fuzzy duplicate detection — normalize title, check word overlap
+function fuzzyTitleMatch(a, b) {
+  const norm = s => s.toLowerCase().replace(/[^a-z0-9\s]/g,"").replace(/\s+/g," ").trim();
+  const words = s => new Set(norm(s).split(" ").filter(w=>w.length>2));
+  const wa=words(a), wb=words(b);
+  if(wa.size===0||wb.size===0) return false;
+  let overlap=0; wa.forEach(w=>{if(wb.has(w))overlap++;});
+  const score=overlap/Math.min(wa.size,wb.size);
+  return score>=0.6;
+}
+function findDuplicates(title, recipes) {
+  return recipes.filter(r=>fuzzyTitleMatch(r.title, title));
+}
+
 function detectCategory(title,saved) {
   if (saved&&saved!=="other") return saved;
   const t=(title||"").toLowerCase();
@@ -691,6 +705,57 @@ function ScanScreen({onBack,onSaved}) {
         </div>
         {stage==="front"&&<button onClick={()=>frontInputRef.current&&frontInputRef.current.click()} style={{...btnP,padding:"12px 28px",fontSize:16}}>Open Camera</button>}
         {stage==="back"&&<button onClick={()=>backInputRef.current&&backInputRef.current.click()} style={{...btnP,padding:"12px 28px",fontSize:16}}>Open Camera</button>}
+      </div>
+    </div>
+  );
+}
+
+function DuplicateModal({newRecipe, existing, onKeepExisting, onSaveNew, onReplace}) {
+  const fmt=r=>r.addedAt?new Date(r.addedAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"Unknown date";
+  const Card=({recipe,label,accent})=>(
+    <div style={{flex:1,minWidth:0,background:C.card,borderRadius:12,border:`2px solid ${accent}`,overflow:"hidden"}}>
+      <div style={{background:accent,padding:"8px 14px",fontSize:12,fontWeight:700,color:"#fff",letterSpacing:1,textTransform:"uppercase"}}>{label}</div>
+      {recipe.frontImage
+        ?<img src={recipe.frontImage} alt={recipe.title} style={{width:"100%",height:120,objectFit:"contain",background:"#1a1a1a",display:"block"}}/>
+        :<div style={{height:8,background:accent}}/>}
+      <div style={{padding:"12px 14px"}}>
+        <div style={{fontSize:14,fontWeight:700,color:C.ink,marginBottom:6,lineHeight:1.3}}>{recipe.title}</div>
+        <div style={{fontSize:12,color:C.muted,display:"flex",flexDirection:"column",gap:3}}>
+          <span>Scanned: {fmt(recipe)}</span>
+          <span>{recipe.steps?.length||0} steps &bull; Serves {recipe.servings}</span>
+          <span>{(recipe.ingredientsSent||recipe.ingredients||[]).length} ingredients</span>
+        </div>
+      </div>
+    </div>
+  );
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:500,background:"rgba(10,10,10,0.8)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,animation:"fadeIn 0.2s ease"}}>
+      <div style={{background:C.paper,borderRadius:20,width:"100%",maxWidth:560,maxHeight:"94vh",overflowY:"auto",boxShadow:"0 24px 80px rgba(0,0,0,0.4)"}}>
+        <div style={{background:C.orange,padding:"18px 24px"}}>
+          <div style={{fontSize:18,fontWeight:700,color:"#fff",marginBottom:4}}>Possible Duplicate Found</div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,0.85)"}}>This recipe looks similar to one already in your catalog.</div>
+        </div>
+        <div style={{padding:"20px 20px 8px"}}>
+          <div style={{display:"flex",gap:12,marginBottom:20}}>
+            <Card recipe={existing} label="Already saved" accent={C.sage}/>
+            <Card recipe={newRecipe} label="Just scanned" accent={C.orange}/>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            <button onClick={onKeepExisting} style={{...btnP,background:C.sage,width:"100%",padding:13,fontSize:15,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
+              <span style={{fontSize:20}}>✓</span>
+              <span>Keep existing — discard the new scan</span>
+            </button>
+            <button onClick={onReplace} style={{...btnP,background:C.orange,width:"100%",padding:13,fontSize:15,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
+              <span style={{fontSize:20}}>↑</span>
+              <span>Replace existing with new scan</span>
+            </button>
+            <button onClick={onSaveNew} style={{...btnG,width:"100%",padding:13,fontSize:15,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
+              <span style={{fontSize:20}}>+</span>
+              <span>Save both — they are different recipes</span>
+            </button>
+          </div>
+        </div>
+        <div style={{padding:"12px 20px 20px",fontSize:12,color:C.muted,textAlign:"center"}}>Matched on title similarity</div>
       </div>
     </div>
   );
@@ -1331,10 +1396,29 @@ function App() {
 
   useEffect(()=>{window.history.pushState(null,"",window.location.href);},[screen]);
 
-  const handleSaved=async r=>{
+  const [dupCheck,setDupCheck]=useState(null); // {newRecipe, existing}
+
+  const commitSave=async r=>{
     const next=[r,...recipes]; setRecipes(next); showSave("saving");
     try{await saveRecipes(next);showSave("saved");}catch{showSave("error");}
+    setDupCheck(null);
     setScreen(activeCategory?"recipelist":"catalog");
+  };
+  const commitReplace=async(newR,oldId)=>{
+    const next=[newR,...recipes.filter(r=>r.id!==oldId)]; setRecipes(next); showSave("saving");
+    try{await saveRecipes(next);showSave("saved");}catch{showSave("error");}
+    setDupCheck(null);
+    setScreen(activeCategory?"recipelist":"catalog");
+  };
+
+  const handleSaved=async r=>{
+    const dups=findDuplicates(r.title, recipes);
+    if(dups.length>0){
+      setDupCheck({newRecipe:r, existing:dups[0]});
+      setScreen(activeCategory?"recipelist":"catalog"); // go back behind the modal
+      return;
+    }
+    await commitSave(r);
   };
   const handleDelete=async id=>{
     const next=recipes.filter(r=>r.id!==id); setRecipes(next); showSave("saving");
