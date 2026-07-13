@@ -1259,7 +1259,12 @@ function ShoppingListScreen({recipes,schedule,onBack}) {
           {AISLES.map(aisle=>{
             const items=pantryGroups[aisle.id]||[];
             if(items.length===0) return null;
-            return <AisleSection key={aisle.id} aisle={aisle} items={items} onDel={id=>updManual({...manual,needed:manual.needed.filter(x=>x.id!==id)})}/>;
+            return <AisleSection key={aisle.id} aisle={aisle} items={items}
+              isPantry
+              collapsedState={collapsedPantry}
+              onToggle={toggleCollapsePantry}
+              onDel={id=>updManual({...manual,needed:manual.needed.filter(x=>x.id!==id)})}
+            />;
           })}
         </>}
 
