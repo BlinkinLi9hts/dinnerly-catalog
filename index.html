@@ -762,10 +762,10 @@ function PlannerScreen({recipes,schedule,onUpdateSchedule,onBack,onViewRecipe,on
                       <div style={{fontSize:14,fontWeight:700,color:C.ink,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.title}</div>
                       <div style={{fontSize:12,color:C.muted,marginTop:2}}>{cat.emoji} {cat.label}{r.totalTime?` · ⏱ ${r.totalTime}`:""}</div>
                     </div>
-                    <div style={{display:"flex",gap:6,flexShrink:0}}>
-                      <button onClick={()=>onViewRecipe(r)} style={{...btnP,padding:"7px 12px",fontSize:12}}>Cook</button>
-                      <button onClick={()=>onPickDay(key)} style={{...base,background:"rgba(91,62,140,0.1)",color:C.plum,border:`1px solid rgba(91,62,140,0.3)`,borderRadius:8,padding:"7px 10px",fontSize:12,cursor:"pointer"}}>✏️</button>
-                      <button onClick={()=>clearDay(key)} style={{...base,background:"transparent",color:"#b03020",border:"1px solid #f5c0b0",borderRadius:8,padding:"7px 10px",fontSize:12,cursor:"pointer"}}>✕</button>
+                    <div style={{display:"flex",gap:5,flexShrink:0}}>
+                      <button onClick={()=>onViewRecipe(r)} style={{...btnP,padding:"7px 10px",fontSize:12,whiteSpace:"nowrap"}}>▶ Cook</button>
+                      <button onClick={()=>onPickDay(key)} style={{...base,background:"rgba(91,62,140,0.1)",color:C.plum,border:`1px solid rgba(91,62,140,0.3)`,borderRadius:8,padding:"7px 9px",fontSize:14,cursor:"pointer",lineHeight:1}}>✏️</button>
+                      <button onClick={()=>clearDay(key)} style={{...base,background:"transparent",color:"#b03020",border:"1px solid #f5c0b0",borderRadius:8,padding:"7px 9px",fontSize:14,cursor:"pointer",lineHeight:1,fontWeight:700}}>✕</button>
                     </div>
                   </div>
                 ):(
