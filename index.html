@@ -1541,14 +1541,6 @@ function BattleScreen({recipes,onBack,onConfirm}) {
     },600);
   };
 
-  const handleConfirm=()=>{
-    // Assign winners to Mon-Sun in order
-    const newSchedule={};
-    const dayKeys=["mon","tue","wed","thu","fri","sat","sun"];
-    winners.forEach((r,i)=>{ if(dayKeys[i]) newSchedule[dayKeys[i]]=r.id; });
-    onConfirm(newSchedule);
-  };
-
   const cat=r=>getCategoryInfo(detectCategory(r.title,r.category));
 
   // SETUP SCREEN
