@@ -572,7 +572,7 @@ function RecipeListScreen({recipes,categoryId,onBack,onSelect,onDelete,onAdd,onT
                 </div>
               ):(
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:16}}>
-                  {searchResults.map(r=><LibraryCard key={r.id} recipe={r} onSelect={()=>onSelect(r)} onDelete={()=>onDelete(r.id)}/>)}
+                  {searchResults.map(r=><LibraryCard key={r.id} recipe={r} onSelect={()=>onSelect(r)} onDelete={()=>onDelete(r.id)} onToggleFavorite={onToggleFavorite}/>)}
                 </div>
               )
             ):null}
@@ -590,7 +590,7 @@ function RecipeListScreen({recipes,categoryId,onBack,onSelect,onDelete,onAdd,onT
                   {letter} <span style={{fontWeight:400}}>— {recs.length}</span>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:16}}>
-                  {recs.map(r=><LibraryCard key={r.id} recipe={r} onSelect={()=>onSelect(r)} onDelete={()=>onDelete(r.id)}/>)}
+                  {recs.map(r=><LibraryCard key={r.id} recipe={r} onSelect={()=>onSelect(r)} onDelete={()=>onDelete(r.id)} onToggleFavorite={onToggleFavorite}/>)}
                 </div>
               </div>
             ))}
