@@ -1639,6 +1639,14 @@ function BattleScreen({recipes,onBack,onConfirm}) {
   // RESULTS SCREEN
   const dayKeys=["mon","tue","wed","thu","fri","sat","sun"];
   const dayLabels=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+  const dayShort=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const [assignedDays,setAssignedDays]=useState(()=>winners.map((_,i)=>dayKeys[i]||"mon"));
+  const updateDay=(winnerIdx,day)=>setAssignedDays(prev=>{const n=[...prev];n[winnerIdx]=day;return n;});
+  const handleConfirm=()=>{
+    const newSchedule={};
+    winners.forEach((r,i)=>{ if(assignedDays[i]) newSchedule[assignedDays[i]]=r.id; });
+    onConfirm(newSchedule);
+  };
   return (
     <div style={{...base,minHeight:"100vh",background:C.dark,display:"flex",flexDirection:"column"}}>
       <div style={{background:"rgba(255,255,255,0.05)",padding:"18px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -1650,27 +1658,44 @@ function BattleScreen({recipes,onBack,onConfirm}) {
         <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{fontSize:48,marginBottom:8}}>🏆</div>
           <div style={{fontSize:20,fontWeight:700,color:"#fff",marginBottom:4}}>The people have spoken!</div>
-          <div style={{fontSize:14,color:"rgba(255,255,255,0.4)"}}>{winners.length} meals ready to plan</div>
+          <div style={{fontSize:14,color:"rgba(255,255,255,0.4)"}}>Assign each winner to a night</div>
         </div>
-        <div style={{maxWidth:500,margin:"0 auto",display:"flex",flexDirection:"column",gap:10,marginBottom:32}}>
+        <div style={{maxWidth:520,margin:"0 auto",display:"flex",flexDirection:"column",gap:10,marginBottom:32}}>
           {winners.map((r,i)=>{
             const c=cat(r);
+            const usedDays=assignedDays.filter((_,j)=>j!==i);
             return (
-              <div key={r.id} style={{background:"rgba(255,255,255,0.06)",borderRadius:14,overflow:"hidden",display:"flex",alignItems:"center",gap:0,border:"1.5px solid rgba(255,255,255,0.1)"}}>
-                <div style={{width:64,padding:"12px",background:"rgba(255,255,255,0.04)",flexShrink:0,textAlign:"center"}}>
-                  <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",fontWeight:700,letterSpacing:1}}>{dayLabels[i].slice(0,3).toUpperCase()}</div>
+              <div key={r.id} style={{background:"rgba(255,255,255,0.06)",borderRadius:14,overflow:"hidden",border:"1.5px solid rgba(255,255,255,0.1)"}}>
+                <div style={{display:"flex",alignItems:"center",gap:0}}>
+                  {r.frontImage&&<img src={r.frontImage} alt={r.title} style={{width:56,height:56,objectFit:"cover",flexShrink:0}}/>}
+                  {!r.frontImage&&<div style={{width:56,height:56,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,background:"rgba(255,255,255,0.04)"}}>{c.emoji}</div>}
+                  <div style={{flex:1,padding:"10px 12px",minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:700,color:"#F5F2ED",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.title}</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginTop:1}}>{c.emoji} {c.label}{r.totalTime?` · ${r.totalTime}`:""}</div>
+                  </div>
                 </div>
-                {r.frontImage&&<img src={r.frontImage} alt={r.title} style={{width:60,height:48,objectFit:"cover",flexShrink:0}}/>}
-                {!r.frontImage&&<div style={{width:60,height:48,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,background:"rgba(255,255,255,0.04)"}}>{c.emoji}</div>}
-                <div style={{flex:1,padding:"12px 14px",minWidth:0}}>
-                  <div style={{fontSize:14,fontWeight:700,color:"#F5F2ED",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.title}</div>
-                  <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginTop:2}}>{c.emoji} {c.label}{r.totalTime?` · ${r.totalTime}`:""}</div>
+                <div style={{borderTop:"1px solid rgba(255,255,255,0.08)",padding:"10px 12px"}}>
+                  <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:7,letterSpacing:0.5}}>COOK ON:</div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    {dayKeys.map((dk,di)=>{
+                      const taken=usedDays.includes(dk);
+                      const selected=assignedDays[i]===dk;
+                      return (
+                        <button key={dk} onClick={()=>!taken&&updateDay(i,dk)}
+                          style={{...base,padding:"5px 10px",borderRadius:7,fontSize:12,fontWeight:700,cursor:taken?"default":"pointer",border:"1.5px solid",transition:"all 0.15s",
+                            background:selected?C.orange:taken?"rgba(255,255,255,0.03)":"transparent",
+                            borderColor:selected?C.orange:taken?"rgba(255,255,255,0.08)":"rgba(255,255,255,0.2)",
+                            color:selected?"#fff":taken?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.7)",
+                          }}>{dayShort[di]}</button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             );
           })}
         </div>
-        <div style={{maxWidth:500,margin:"0 auto"}}>
+        <div style={{maxWidth:520,margin:"0 auto"}}>
           <button onClick={handleConfirm} style={{...btnP,background:C.orange,width:"100%",padding:15,fontSize:17,marginBottom:12}}>
             Add to Weekly Planner
           </button>
