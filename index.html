@@ -1201,7 +1201,11 @@ const SEED_RECIPE={
 };
 
 function seedIfEmpty() {
-  try{const e=localStorage.getItem("dinnerly-recipes-v2");const a=e?JSON.parse(e):[];
+  // Only seed if there is NO shared secret configured yet (true first-time setup on a fresh device)
+  // Once a secret exists, cloud is the source of truth -- don't inject local seed data
+  try{
+    if(localStorage.getItem(SECRET_STORAGE)) return; // already set up, cloud is source of truth
+    const e=localStorage.getItem("dinnerly-recipes-v2");const a=e?JSON.parse(e):[];
     if(a.length===0)localStorage.setItem("dinnerly-recipes-v2",JSON.stringify([SEED_RECIPE]));
   }catch(e){}
 }
@@ -1214,9 +1218,14 @@ function SecretScreen({onSaved}) {
     if(!s){setErr("Please enter the shared password");return;}
     setTesting(true);setErr("");
     try {
-      // Test write access
-      const res=await fetch("/api/recipes",{method:"POST",headers:{"Content-Type":"application/json","X-Dinnerly-Secret":s},body:JSON.stringify(null)});
-      if(res.status===401){setErr("Wrong password");setTesting(false);return;}
+      // Validate secret safely: GET current recipes first, then re-POST same data back
+      // This avoids writing null/garbage to KV during the test
+      const getRes=await fetch("/api/recipes");
+      if(!getRes.ok){setErr("Could not reach server");setTesting(false);return;}
+      const currentRecipes=await getRes.json().catch(()=>[]);
+      const testRes=await fetch("/api/recipes",{method:"POST",headers:{"Content-Type":"application/json","X-Dinnerly-Secret":s},body:JSON.stringify(currentRecipes||[])});
+      if(testRes.status===401){setErr("Wrong password");setTesting(false);return;}
+      if(!testRes.ok){setErr("Server error: "+testRes.status);setTesting(false);return;}
       onSaved(s);
     } catch(e){setErr("Could not connect: "+e.message);}
     setTesting(false);
