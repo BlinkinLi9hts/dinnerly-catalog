@@ -1235,6 +1235,8 @@ function ShoppingListScreen({recipes,schedule,onBack}) {
           const isLast=aisle.id==='other';
           return <AisleSection key={aisle.id} aisle={aisle} items={items}
             onDel={delManualItem}
+            collapsedState={collapsed}
+            onToggle={toggleCollapse}
             addRow={isLast?<AddItemRow onAdd={addManualItem} placeholder="Add any item..."/>:null}
           />;
         })}
