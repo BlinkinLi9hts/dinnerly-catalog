@@ -11,7 +11,7 @@ A personal recipe catalog app for Brian's physical Dinnerly recipe card collecti
 **Live URL:** https://dinnerly-catalog.pages.dev
 **Repo:** https://github.com/BlinkinLi9hts/dinnerly-catalog
 **Local file:** C:\Projects\dinnerly-catalog\index.html
-**Current version:** v2.8 (live — scrollable recipe list, alpha index bar)
+**Current version:** v2.9 (live — search on CategoryScreen and RecipeListScreen)
 
 ---
 
@@ -238,3 +238,4 @@ C = { ink:"#1C1C1E", paper:"#F5F2ED", card:"#FFFFFF", sage:"#4A7C59",
 - v2.5–2.6: **Auto-crop & viewfinder experiments** — attempted fixed-percentage auto-crop and live getUserMedia viewfinder for front card; both abandoned due to card distance variability and UX friction. File became corrupted from incremental edits.
 - v2.7: **Clean rewrite** — full file rewritten via Cowork; restores simple scan flow (front file input → CropModal → back file input → parse → review); removes ViewfinderCapture entirely; all v2.4 features preserved.
 - v2.8: **Scrollable recipe list with alpha index** — RecipeListScreen now height-constrained with overflowY scroll; recipes sorted alphabetically and grouped by first letter with section headers; A–Z jump bar on right edge (touch drag supported) appears when 5+ letters present; recipe count shown in header.
+- v2.9: **Search** — live search bar on CategoryScreen (filters protein tiles by name or matching recipe titles); live search bar on RecipeListScreen (filters cards by title, bypasses alpha grouping, alpha bar hidden while searching); × clear button on both; no-results state on both.
