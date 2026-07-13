@@ -1500,6 +1500,188 @@ function CookScreen({recipe,guestCount,scaledIngredients,onBack}) {
 }
 
 
+function BattleScreen({recipes,onBack,onConfirm}) {
+  const [stage,setStage]=useState("setup"); // setup | battle | results
+  const [numDays,setNumDays]=useState(4);
+  const [matchups,setMatchups]=useState([]);
+  const [round,setRound]=useState(0);
+  const [winners,setWinners]=useState([]);
+  const [chosen,setChosen]=useState(null);
+
+  const startBattle=()=>{
+    // Shuffle recipes and pick numDays*2 (or as many as available)
+    const shuffled=[...recipes].sort(()=>Math.random()-0.5);
+    const pool=shuffled.slice(0,Math.min(numDays*2,shuffled.length));
+    // Pair them up; if odd number, last one gets a bye
+    const pairs=[];
+    for(let i=0;i<pool.length;i+=2){
+      if(pool[i+1]) pairs.push([pool[i],pool[i+1]]);
+      else pairs.push([pool[i],null]); // bye
+    }
+    setMatchups(pairs);
+    setRound(0);
+    setWinners([]);
+    setChosen(null);
+    setStage("battle");
+  };
+
+  const pickWinner=(recipe)=>{
+    setChosen(recipe.id);
+    setTimeout(()=>{
+      const next=[...winners,recipe];
+      if(round+1>=matchups.length){
+        setWinners(next);
+        setStage("results");
+      } else {
+        setWinners(next);
+        setRound(r=>r+1);
+        setChosen(null);
+      }
+    },600);
+  };
+
+  const handleConfirm=()=>{
+    // Assign winners to Mon-Sun in order
+    const newSchedule={};
+    const dayKeys=["mon","tue","wed","thu","fri","sat","sun"];
+    winners.forEach((r,i)=>{ if(dayKeys[i]) newSchedule[dayKeys[i]]=r.id; });
+    onConfirm(newSchedule);
+  };
+
+  const cat=r=>getCategoryInfo(detectCategory(r.title,r.category));
+
+  // SETUP SCREEN
+  if(stage==="setup") return (
+    <div style={{...base,minHeight:"100vh",background:C.dark,display:"flex",flexDirection:"column"}}>
+      <div style={{background:"rgba(255,255,255,0.05)",padding:"18px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <button onClick={onBack} style={{...btnD,padding:"7px 14px",fontSize:13}}>&larr; Back</button>
+        <span style={{color:"#fff",fontWeight:700,fontSize:17}}>Recipe Battle</span>
+        <div style={{width:80}}/>
+      </div>
+      <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px"}}>
+        <div style={{fontSize:72,marginBottom:16,lineHeight:1}}>{"\u2694\ufe0f"}</div>
+        <div style={{fontSize:28,fontWeight:700,color:"#fff",marginBottom:8,textAlign:"center"}}>Recipe Battle</div>
+        <div style={{fontSize:15,color:"rgba(255,255,255,0.55)",marginBottom:48,textAlign:"center",lineHeight:1.5}}>Pick your meals for the week, head-to-head</div>
+        <div style={{background:"rgba(255,255,255,0.06)",borderRadius:20,padding:"32px 40px",width:"100%",maxWidth:400,textAlign:"center"}}>
+          <div style={{fontSize:14,color:"rgba(255,255,255,0.6)",marginBottom:20,fontWeight:600,letterSpacing:1,textTransform:"uppercase"}}>How many nights?</div>
+          <div style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap",marginBottom:32}}>
+            {[2,3,4,5,6,7].map(n=>(
+              <button key={n} onClick={()=>setNumDays(n)} style={{...base,width:56,height:56,borderRadius:12,fontSize:22,fontWeight:700,cursor:"pointer",border:"2.5px solid",transition:"all 0.15s",background:numDays===n?C.orange:"transparent",borderColor:numDays===n?C.orange:"rgba(255,255,255,0.2)",color:numDays===n?"#fff":"rgba(255,255,255,0.6)"}}>{n}</button>
+            ))}
+          </div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,0.35)",marginBottom:28}}>
+            {Math.min(numDays*2,recipes.length)} recipes will enter — {numDays} will survive
+          </div>
+          <button onClick={startBattle} disabled={recipes.length<2} style={{...btnP,background:C.orange,width:"100%",padding:"15px",fontSize:17,opacity:recipes.length<2?0.4:1}}>
+            {"\u2694\ufe0f"} Let the Battle Begin!
+          </button>
+          {recipes.length<2&&<div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginTop:12}}>Add more recipes to your catalog first</div>}
+        </div>
+      </div>
+    </div>
+  );
+
+  // BATTLE SCREEN
+  if(stage==="battle") {
+    const pair=matchups[round];
+    const [a,b]=pair;
+    if(!b) { pickWinner(a); return null; } // auto-advance bye
+    const catA=cat(a), catB=cat(b);
+    return (
+      <div style={{...base,minHeight:"100vh",background:C.dark,display:"flex",flexDirection:"column"}}>
+        <div style={{background:"rgba(255,255,255,0.05)",padding:"14px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <button onClick={()=>setStage("setup")} style={{...btnD,padding:"7px 14px",fontSize:13}}>✕ Quit</button>
+          <div style={{textAlign:"center"}}>
+            <div style={{color:"rgba(255,255,255,0.4)",fontSize:12,letterSpacing:1,textTransform:"uppercase"}}>Matchup</div>
+            <div style={{color:"#fff",fontWeight:700,fontSize:16}}>{round+1} of {matchups.length}</div>
+          </div>
+          <div style={{width:80}}/>
+        </div>
+        <div style={{height:4,background:"rgba(255,255,255,0.08)"}}>
+          <div style={{height:"100%",width:`${((round)/matchups.length)*100}%`,background:C.orange,transition:"width 0.4s"}} />
+        </div>
+        <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"16px"}}>
+          <div style={{fontSize:13,color:"rgba(255,255,255,0.4)",marginBottom:20,letterSpacing:1,textTransform:"uppercase",fontWeight:600}}>Tap to choose tonight's dinner</div>
+          <div style={{display:"flex",gap:12,width:"100%",maxWidth:680,alignItems:"stretch"}}>
+            {[a,b].map((recipe,si)=>{
+              const c=si===0?catA:catB;
+              const isChosen=chosen===recipe.id;
+              const isLoser=chosen&&chosen!==recipe.id;
+              return (
+                <button key={recipe.id} onClick={()=>!chosen&&pickWinner(recipe)}
+                  style={{...base,flex:1,background:isChosen?"rgba(217,98,43,0.15)":"rgba(255,255,255,0.04)",border:`2.5px solid ${isChosen?C.orange:isLoser?"rgba(255,255,255,0.06)":"rgba(255,255,255,0.12)"}`,borderRadius:20,overflow:"hidden",cursor:chosen?"default":"pointer",transition:"all 0.3s",opacity:isLoser?0.35:1,display:"flex",flexDirection:"column",textAlign:"left"}}>
+                  <div style={{height:160,background:"#1a1a1a",position:"relative",overflow:"hidden",flexShrink:0}}>
+                    {recipe.frontImage
+                      ?<img src={recipe.frontImage} alt={recipe.title} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                      :<div style={{height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:52}}>{c.emoji}</div>
+                    }
+                    {isChosen&&<div style={{position:"absolute",inset:0,background:"rgba(217,98,43,0.3)",display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{fontSize:52}}>✓</div></div>}
+                  </div>
+                  <div style={{padding:"16px",flex:1,display:"flex",flexDirection:"column",gap:6}}>
+                    <div style={{fontSize:11,color:C.orange,fontWeight:700,letterSpacing:1,textTransform:"uppercase"}}>{c.emoji} {c.label}</div>
+                    <div style={{fontSize:16,fontWeight:700,color:"#F5F2ED",lineHeight:1.3}}>{recipe.title}</div>
+                    <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginTop:"auto",paddingTop:8,display:"flex",gap:12}}>
+                      {recipe.totalTime&&<span>{"\u23f1"} {recipe.totalTime}</span>}
+                      <span>Serves {recipe.servings}</span>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{marginTop:20,fontSize:28,color:"rgba(255,255,255,0.15)",letterSpacing:4}}>VS</div>
+        </div>
+      </div>
+    );
+  }
+
+  // RESULTS SCREEN
+  const dayKeys=["mon","tue","wed","thu","fri","sat","sun"];
+  const dayLabels=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+  return (
+    <div style={{...base,minHeight:"100vh",background:C.dark,display:"flex",flexDirection:"column"}}>
+      <div style={{background:"rgba(255,255,255,0.05)",padding:"18px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <button onClick={()=>setStage("setup")} style={{...btnD,padding:"7px 14px",fontSize:13}}>Restart</button>
+        <span style={{color:"#fff",fontWeight:700,fontSize:17}}>This Week's Lineup</span>
+        <div style={{width:80}}/>
+      </div>
+      <div style={{flex:1,overflowY:"auto",padding:"24px 16px"}}>
+        <div style={{textAlign:"center",marginBottom:28}}>
+          <div style={{fontSize:48,marginBottom:8}}>🏆</div>
+          <div style={{fontSize:20,fontWeight:700,color:"#fff",marginBottom:4}}>The people have spoken!</div>
+          <div style={{fontSize:14,color:"rgba(255,255,255,0.4)"}}>{winners.length} meals ready to plan</div>
+        </div>
+        <div style={{maxWidth:500,margin:"0 auto",display:"flex",flexDirection:"column",gap:10,marginBottom:32}}>
+          {winners.map((r,i)=>{
+            const c=cat(r);
+            return (
+              <div key={r.id} style={{background:"rgba(255,255,255,0.06)",borderRadius:14,overflow:"hidden",display:"flex",alignItems:"center",gap:0,border:"1.5px solid rgba(255,255,255,0.1)"}}>
+                <div style={{width:64,padding:"12px",background:"rgba(255,255,255,0.04)",flexShrink:0,textAlign:"center"}}>
+                  <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",fontWeight:700,letterSpacing:1}}>{dayLabels[i].slice(0,3).toUpperCase()}</div>
+                </div>
+                {r.frontImage&&<img src={r.frontImage} alt={r.title} style={{width:60,height:48,objectFit:"cover",flexShrink:0}}/>}
+                {!r.frontImage&&<div style={{width:60,height:48,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,background:"rgba(255,255,255,0.04)"}}>{c.emoji}</div>}
+                <div style={{flex:1,padding:"12px 14px",minWidth:0}}>
+                  <div style={{fontSize:14,fontWeight:700,color:"#F5F2ED",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.title}</div>
+                  <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginTop:2}}>{c.emoji} {c.label}{r.totalTime?` · ${r.totalTime}`:""}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{maxWidth:500,margin:"0 auto"}}>
+          <button onClick={handleConfirm} style={{...btnP,background:C.orange,width:"100%",padding:15,fontSize:17,marginBottom:12}}>
+            Add to Weekly Planner
+          </button>
+          <button onClick={()=>setStage("setup")} style={{...btnD,width:"100%",padding:"12px",fontSize:14,textAlign:"center",borderRadius:8}}>
+            Battle Again
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 function App() {
   const [hasKey,setHasKey]=useState(!!getApiKey());
