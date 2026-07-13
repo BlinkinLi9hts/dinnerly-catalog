@@ -11,7 +11,7 @@ A personal recipe catalog app for Brian's physical Dinnerly recipe card collecti
 **Live URL:** https://dinnerly-catalog.pages.dev
 **Repo:** https://github.com/BlinkinLi9hts/dinnerly-catalog
 **Local file:** C:\Projects\dinnerly-catalog\index.html
-**Current version:** v2.2
+**Current version:** v2.3
 
 ---
 
@@ -202,9 +202,9 @@ C = { ink:"#1C1C1E", paper:"#F5F2ED", card:"#FFFFFF", sage:"#4A7C59",
 
 | # | Issue | Status |
 |---|-------|--------|
-| 1 | Cloud storage end-to-end — needs first full test on live site | 🔧 Deployed, not yet tested |
-| 2 | Secret screen → verify it correctly validates and saves on both devices | 🔧 Pending tablet test |
-| 3 | Migration flow — needs test: local recipes → "Upload to Cloud" → verify cloud has them | 🔧 Pending |
+| 1 | Cloud storage end-to-end — needs first full test on live site | ✅ Verified working v2.3 |
+| 2 | Secret screen → verify it correctly validates and saves on both devices | ✅ Fixed in v2.3 |
+| 3 | Migration flow — needs test: local recipes → "Upload to Cloud" → verify cloud has them | 🔧 Pending (KV was wiped; test once cards are scanned) |
 | 4 | Photo Replace/Remove overlay uses hover opacity — may be invisible on first touch on tablet | 🔧 Pending touch test |
 | 5 | Voice checklist "got that one" / "what's left" — needs re-test on tablet after v2.2 | 🔧 Pending |
 | 6 | Seed recipe (Macaroni Bolognese id:1720000000000) still in code | ⏳ Remove once real cards scanned |
@@ -230,3 +230,4 @@ C = { ink:"#1C1C1E", paper:"#F5F2ED", card:"#FFFFFF", sage:"#4A7C59",
 - v2.0: Weekly Planner (Mon–Sun), planner pick flow (catalog browse → add to day), Shopping List (aggregated ingredients + pantry staples + tools), check-off with localStorage persistence, Android back button planner-aware routing
 - v2.1: CropModal (pinch/drag 16:9 canvas crop), fast scan flow (camera auto-opens → crop → camera auto-opens → parse → review), no manual "Read Recipe Cards" button
 - v2.2: **Cloudflare KV cloud storage** — recipes and schedule stored in KV, shared across all devices; SecretScreen (shared password entry); loading screen; save status toast; migration prompt for existing localStorage data; ingredient routing fix ("to taste" items → pantry staples at scan time and shopping list display time); weekly planner button overflow fix
+- v2.3: **Cloud storage bug fixes** — recreated missing `functions/api/recipes.js` and `functions/api/schedule.js` (never committed to repo); fixed SecretScreen POSTing `null` to KV on every new device setup (wiped all recipes); fixed `seedIfEmpty()` re-injecting seed after migration. Full end-to-end cloud round-trip verified working.
