@@ -1429,69 +1429,6 @@ function App() {
     </>
   );
 }
-  const handleUpdateCategory=(id,catId)=>{const next=recipes.map(r=>r.id===id?{...r,category:catId}:r);setRecipes(next);saveRecipes(next);if(active?.recipe?.id===id)setActive(p=>({...p,recipe:{...p.recipe,category:catId}}));};
-  const goToRecipe=(r,fromPlanner=false)=>{setActive({recipe:r,guestCount:r.servings,scaledIngredients:scaleIngredients(r,r.servings),fromPlanner});setScreen("detail");};
-
-  const pickBanner=plannerPickDay?(
-    <div style={{background:C.plum,padding:"10px 20px",display:"flex",alignItems:"center",gap:10}}>
-      <span style={{fontSize:14,color:"rgba(255,255,255,0.8)"}}>Picking meal for</span>
-      <span style={{fontSize:14,fontWeight:700,color:"#fff"}}>{DAYS_MAP[plannerPickDay]}</span>
-      <button onClick={()=>{setPlannerPickDay(null);setScreen("planner");}} style={{marginLeft:"auto",background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:6,padding:"4px 12px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-    </div>
-  ):null;
-
-  if(!hasKey||showSettings) return <ApiKeyScreen onSaved={()=>{setHasKey(true);setShowSettings(false);}}/>;
-  if(screen==="scan") return <ScanScreen onBack={()=>setScreen(activeCategory?"recipelist":"catalog")} onSaved={handleSaved}/>;
-  if(screen==="detail"&&active?.recipe) return (
-    <DetailScreen recipe={active.recipe}
-      onBack={()=>{if(plannerPickDay){setScreen("recipelist");}else{setScreen(active?.fromPlanner?"planner":"recipelist");}}}
-      onUpdatePhoto={handleUpdatePhoto} onUpdateCategory={handleUpdateCategory}
-      plannerPickDay={plannerPickDay}
-      plannerDayLabel={plannerPickDay?DAYS_MAP[plannerPickDay]:null}
-      onAddToPlanner={()=>handlePlannerPick(active.recipe.id)}
-      onCook={(r,g,s)=>{setActive(p=>({...p,recipe:r,guestCount:g,scaledIngredients:s}));setScreen("cook");}}/>
-  );
-  if(screen==="cook"&&active?.recipe) return (
-    <CookScreen recipe={active.recipe} guestCount={active.guestCount} scaledIngredients={active.scaledIngredients} onBack={()=>setScreen("detail")}/>
-  );
-  if(screen==="recipelist"&&activeCategory) return (
-    <>
-      {pickBanner}
-      <RecipeListScreen recipes={recipes} categoryId={activeCategory}
-        onBack={()=>setScreen("catalog")}
-        onSelect={r=>goToRecipe(r,false)}
-        onDelete={handleDelete} onAdd={()=>setScreen("scan")}/>
-    </>
-  );
-  if(screen==="catalog") return (
-    <>
-      {pickBanner}
-      <CategoryScreen recipes={recipes}
-        onBack={()=>{if(plannerPickDay){setPlannerPickDay(null);setScreen("planner");}else{setScreen("home");}}}
-        onSelectCategory={id=>{setActiveCategory(id);setScreen("recipelist");}}
-        onAdd={()=>setScreen("scan")}/>
-    </>
-  );
-  if(screen==="planner") return (
-    <PlannerScreen recipes={recipes} schedule={schedule}
-      onUpdateSchedule={handleUpdateSchedule}
-      onBack={()=>setScreen("home")}
-      onViewRecipe={r=>goToRecipe(r,true)}
-      onPickDay={day=>{setPlannerPickDay(day);setActiveCategory(null);setScreen("catalog");}}/>
-  );
-
-  return (
-    <>
-      <HomeScreen recipes={recipes} schedule={schedule}
-        onCatalog={()=>setScreen("catalog")}
-        onPlanner={()=>setScreen("planner")}
-        onAdd={()=>{setActiveCategory(null);setScreen("scan");}}
-        onSettings={()=>setShowSettings(true)}/>
-      {exitPrompt&&<div style={{position:"fixed",bottom:40,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,0.8)",color:"#fff",padding:"12px 24px",borderRadius:50,fontSize:15,fontWeight:600,zIndex:999,whiteSpace:"nowrap"}}>Tap back again to exit</div>}
-    </>
-  );
-}
-
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
