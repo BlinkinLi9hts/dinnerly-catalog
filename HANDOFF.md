@@ -205,8 +205,8 @@ C = { ink:"#1C1C1E", paper:"#F5F2ED", card:"#FFFFFF", sage:"#4A7C59",
 |---|-------|--------|
 | 1 | Cloud storage end-to-end — needs first full test on live site | ✅ Verified working v2.3 |
 | 2 | Secret screen → verify it correctly validates and saves on both devices | ✅ Fixed in v2.3 |
-| 3 | Migration flow — needs test: local recipes → "Upload to Cloud" → verify cloud has them | 🔧 Pending (KV was wiped; test once cards are scanned) |
-| 4 | Photo Replace/Remove overlay uses hover opacity — may be invisible on first touch on tablet | 🔧 Pending touch test |
+| 3 | Migration flow — needs test: local recipes → "Upload to Cloud" → verify cloud has them | ✅ Pass |
+| 4 | Photo Replace/Remove overlay uses hover opacity — may be invisible on first touch on tablet | ✅ Pass |
 | 5 | Voice checklist "got that one" / "what's left" — needs re-test on tablet after rewrite | 🔧 Pending |
 | 6 | Seed recipe (Macaroni Bolognese id:1720000000000) still in code | ⏳ Remove once real cards scanned |
 | 7 | "Heard:" debug display still in voice checklist | ⏳ Remove once voice confirmed working |
