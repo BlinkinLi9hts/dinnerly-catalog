@@ -661,12 +661,6 @@ function ScanScreen({onBack,onSaved}) {
     }
   };
 
-  if(stage==="crop"&&front) return (
-    <CropModal imageDataUrl={front.dataUrl}
-      onConfirm={handleCropConfirm}
-      onRetake={()=>{setFront(null);setStage("front");}}/>
-  );
-
   if(stage==="parsing") return (
     <div style={{...base,minHeight:"100vh",background:C.paper}}>
       <TopBar onBack={onBack} title="Scan Recipe Card"/>
