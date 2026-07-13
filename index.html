@@ -31,6 +31,7 @@ const SECRET_STORAGE   = "dinnerly-secret";
 const STORAGE_KEY      = "dinnerly-recipes-v2";
 const SCHEDULE_KEY     = "dinnerly-schedule-v1";
 const SHOP_CHECKED_KEY = "dinnerly-shop-checked-v1";
+const SHOP_MANUAL_KEY  = "dinnerly-shop-manual-v1";
 
 function getApiKey() { return localStorage.getItem(API_KEY_STORAGE) || ""; }
 function setApiKey(k) { localStorage.setItem(API_KEY_STORAGE, k); }
@@ -61,6 +62,8 @@ async function loadSchedule() { try { return await cloudGet("schedule"); } catch
 async function saveSchedule(s) { try { await cloudPost("schedule", s); } catch(e) { console.error("saveSchedule:", e); } }
 function loadShopChecked() { try { const c=localStorage.getItem(SHOP_CHECKED_KEY); return c?JSON.parse(c):{}; } catch { return {}; } }
 function saveShopChecked(c) { try { localStorage.setItem(SHOP_CHECKED_KEY, JSON.stringify(c)); } catch {} }
+function loadShopManual() { try { const m=localStorage.getItem(SHOP_MANUAL_KEY); return m?JSON.parse(m):{sent:[],needed:[]}; } catch { return {sent:[],needed:[]}; } }
+function saveShopManual(m) { try { localStorage.setItem(SHOP_MANUAL_KEY, JSON.stringify(m)); } catch {} }
 function getLocalRecipes() { try { const r=localStorage.getItem(STORAGE_KEY); return r?JSON.parse(r):[]; } catch { return []; } }
 function getLocalSchedule() { try { const s=localStorage.getItem(SCHEDULE_KEY); return s?JSON.parse(s):{}; } catch { return {}; } }
 function clearLocalData() { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(SCHEDULE_KEY); }
@@ -365,7 +368,7 @@ function TopBar({onBack,title,right,dark}) {
   );
 }
 
-function HomeScreen({recipes,schedule,onCatalog,onPlanner,onAdd,onSettings}) {
+function HomeScreen({recipes,schedule,onCatalog,onPlanner,onShopping,onAdd,onSettings}) {
   const assignedCount=Object.values(schedule).filter(Boolean).length;
   return (
     <div style={{...base,minHeight:"100vh",background:C.paper}}>
@@ -398,6 +401,13 @@ function HomeScreen({recipes,schedule,onCatalog,onPlanner,onAdd,onSettings}) {
             <div style={{fontSize:13,color:assignedCount>0?C.sageDark:C.muted,background:assignedCount>0?C.sageLight:"#F0EDE8",borderRadius:20,padding:"4px 14px",fontWeight:600,display:"inline-block",marginTop:10}}>
               {assignedCount>0?`${assignedCount} meal${assignedCount!==1?"s":""} planned`:"No meals planned yet"}
             </div>
+          </div>
+        </button>
+        <button onClick={onShopping} className="cat-tile" style={{...base,background:C.card,border:`1.5px solid ${C.border}`,borderRadius:20,padding:"32px 28px",cursor:"pointer",textAlign:"left",boxShadow:"0 2px 16px rgba(0,0,0,0.07)",transition:"all 0.18s",display:"flex",alignItems:"center",gap:24,width:"100%"}}>
+          <span style={{fontSize:64,lineHeight:1,flexShrink:0}}>{"\ud83d\uded2"}</span>
+          <div>
+            <div style={{fontSize:22,fontWeight:700,color:C.ink,marginBottom:6}}>Shopping List</div>
+            <div style={{fontSize:14,color:C.muted,lineHeight:1.5}}>View and manage your grocery list</div>
           </div>
         </button>
       </div>
@@ -1013,76 +1023,134 @@ function PlannerScreen({recipes,schedule,onUpdateSchedule,onBack,onViewRecipe,on
   );
 }
 
-function ShoppingListScreen({recipes,schedule,onBack}) {
-  const {sent,needed,tools}=useMemo(()=>buildShoppingList(schedule,recipes),[schedule,recipes]);
-  const totalItems=sent.length+needed.length;
-  const [checked,setChecked]=useState(()=>loadShopChecked());
-  const toggle=key=>{setChecked(prev=>{const next={...prev,[key]:!prev[key]};saveShopChecked(next);return next;});};
-  const clearAll=()=>{saveShopChecked({});setChecked({});};
-  const checkedCount=Object.values(checked).filter(Boolean).length;
-  const assignedDays=DAYS.filter(d=>schedule[d.key]);
-  if (totalItems===0) return (
-    <div style={{...base,minHeight:"100vh",background:C.paper}}>
-      <TopBar onBack={onBack} title="Shopping List"/>
-      <div style={{textAlign:"center",padding:"80px 24px",color:C.muted}}>
-        <div style={{fontSize:52,marginBottom:16}}>{"\ud83d\uded2"}</div>
-        <div style={{fontSize:18,fontWeight:700,color:C.ink,marginBottom:8}}>No meals planned yet</div>
-        <div style={{fontSize:14}}>Go back to the Weekly Planner and assign some recipes.</div>
-      </div>
+function AddItemRow({onAdd,placeholder}) {
+  const [open,setOpen]=useState(false);
+  const [val,setVal]=useState("");
+  const ref=useRef();
+  const commit=()=>{
+    const v=val.trim(); if(v){onAdd(v);} setVal(""); setOpen(false);
+  };
+  useEffect(()=>{if(open&&ref.current)ref.current.focus();},[open]);
+  if(!open) return (
+    <button onClick={()=>setOpen(true)} style={{...base,display:"flex",alignItems:"center",gap:8,padding:"11px 4px",background:"none",border:"none",color:C.sage,fontSize:14,cursor:"pointer",fontWeight:600}}>
+      <span style={{fontSize:20,lineHeight:1}}>+</span> Add item
+    </button>
+  );
+  return (
+    <div style={{display:"flex",gap:8,padding:"8px 0"}}>
+      <input ref={ref} value={val} onChange={e=>setVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")commit();if(e.key==="Escape"){setVal("");setOpen(false);}}} placeholder={placeholder} style={{...inp,flex:1,fontSize:15}}/>
+      <button onClick={commit} style={{...btnP,padding:"8px 16px",fontSize:14}}>✓</button>
+      <button onClick={()=>{setVal("");setOpen(false);}} style={{...btnG,padding:"8px 14px",fontSize:14}}>✕</button>
     </div>
   );
+}
+
+function ShoppingListScreen({recipes,schedule,onBack}) {
+  const {sent,needed,tools}=useMemo(()=>buildShoppingList(schedule,recipes),[schedule,recipes]);
+  const [manual,setManual]=useState(()=>loadShopManual());
+  const [checked,setChecked]=useState(()=>loadShopChecked());
+  const [delMode,setDelMode]=useState(false);
+
+  const updManual=m=>{setManual(m);saveShopManual(m);};
+  const addManualSent=text=>{const next={...manual,sent:[...manual.sent,{text,id:Date.now()}]};updManual(next);};
+  const addManualNeeded=text=>{const next={...manual,needed:[...manual.needed,{text,id:Date.now()}]};updManual(next);};
+  const delManualSent=id=>updManual({...manual,sent:manual.sent.filter(x=>x.id!==id)});
+  const delManualNeeded=id=>updManual({...manual,needed:manual.needed.filter(x=>x.id!==id)});
+
+  const toggle=key=>{setChecked(prev=>{const next={...prev,[key]:!prev[key]};saveShopChecked(next);return next;});};
+  const clearAll=()=>{saveShopChecked({});setChecked({});};
+
+  const allSent=[...sent,...manual.sent.map(x=>({display:x.text,_manualId:x.id}))];
+  const allNeeded=[...needed,...manual.needed.map(x=>({display:x.text,_manualId:x.id}))];
+  const totalItems=allSent.length+allNeeded.length;
+  const checkedCount=Object.values(checked).filter(Boolean).length;
+  const assignedDays=DAYS.filter(d=>schedule[d.key]);
+
+  const SentRow=({item,i})=>{
+    const key=item._manualId?`manual-sent-${item._manualId}`:`sent-${item.name}-${item.unit}`;
+    const done=!!checked[key];
+    return (
+      <div style={{display:"flex",alignItems:"center",gap:14,padding:"13px 4px",borderBottom:`1px solid ${C.border}`}}>
+        {delMode&&item._manualId
+          ?<button onClick={()=>delManualSent(item._manualId)} style={{width:30,height:30,borderRadius:8,flexShrink:0,background:"#fee2e2",border:"none",color:"#b03020",fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>×</button>
+          :<div onClick={()=>toggle(key)} style={{width:30,height:30,borderRadius:8,flexShrink:0,border:done?"none":`2px solid ${C.border}`,background:done?C.sage:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.2s",cursor:"pointer"}}>{done&&<span style={{color:"#fff",fontSize:18,lineHeight:1}}>&checkmark;</span>}</div>
+        }
+        <div style={{flex:1}} onClick={()=>!delMode&&toggle(key)}>
+          <span style={{fontSize:16,color:done&&!delMode?C.muted:C.ink,textDecoration:done&&!delMode?"line-through":"none"}}>{item.display}</span>
+          {item.recipes&&item.recipes.length>1&&<div style={{fontSize:11,color:C.muted,marginTop:2}}>Used in {item.recipes.length} recipes</div>}
+          {item._manualId&&<span style={{fontSize:11,color:C.plum,marginLeft:6,background:"rgba(91,62,140,0.1)",borderRadius:10,padding:"1px 7px"}}>custom</span>}
+        </div>
+      </div>
+    );
+  };
+
+  const NeededRow=({item,i})=>{
+    const isStr=typeof item==="string";
+    const text=isStr?item:item.display;
+    const manualId=isStr?null:item._manualId;
+    const key=manualId?`manual-needed-${manualId}`:`needed-${text}`;
+    const done=!!checked[key];
+    return (
+      <div style={{display:"flex",alignItems:"center",gap:14,padding:"13px 4px",borderBottom:`1px solid ${C.border}`}}>
+        {delMode&&manualId
+          ?<button onClick={()=>delManualNeeded(manualId)} style={{width:30,height:30,borderRadius:8,flexShrink:0,background:"#fee2e2",border:"none",color:"#b03020",fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>×</button>
+          :<div onClick={()=>toggle(key)} style={{width:30,height:30,borderRadius:8,flexShrink:0,border:done?"none":`2px solid ${C.border}`,background:done?C.sage:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.2s",cursor:"pointer"}}>{done&&<span style={{color:"#fff",fontSize:18,lineHeight:1}}>&checkmark;</span>}</div>
+        }
+        <div style={{flex:1}} onClick={()=>!delMode&&toggle(key)}>
+          <span style={{fontSize:16,color:done&&!delMode?C.muted:C.ink,textDecoration:done&&!delMode?"line-through":"none"}}>{text}</span>
+          {manualId&&<span style={{fontSize:11,color:C.plum,marginLeft:6,background:"rgba(91,62,140,0.1)",borderRadius:10,padding:"1px 7px"}}>custom</span>}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={{...base,minHeight:"100vh",background:C.paper}}>
       <div style={{background:C.plum,padding:"18px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <button onClick={onBack} style={{...btnD,padding:"7px 14px",fontSize:13}}>&larr; Back</button>
         <span style={{color:"#fff",fontWeight:700,fontSize:17}}>Shopping List</span>
-        <button onClick={clearAll} style={{...base,background:"transparent",color:"rgba(255,255,255,0.6)",border:"none",fontSize:13,cursor:"pointer",padding:"7px 0"}}>Reset</button>
-      </div>
-      <div style={{background:"rgba(91,62,140,0.07)",borderBottom:`1px solid rgba(91,62,140,0.12)`,padding:"10px 20px"}}>
-        <div style={{fontSize:12,color:C.plum,fontWeight:600,marginBottom:6}}>This week:</div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          {assignedDays.map(d=>{const r=recipes.find(r=>r.id===schedule[d.key]);return r?<span key={d.key} style={{fontSize:12,background:"rgba(91,62,140,0.12)",color:C.plum,borderRadius:20,padding:"3px 10px"}}><strong>{d.label.slice(0,3)}:</strong> {r.title}</span>:null;})}
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>setDelMode(v=>!v)} style={{...base,background:delMode?"rgba(255,255,255,0.25)":"transparent",color:delMode?"#fff":"rgba(255,255,255,0.6)",border:"1.5px solid rgba(255,255,255,0.3)",borderRadius:8,padding:"7px 12px",fontSize:13,cursor:"pointer",fontWeight:600}}>{delMode?"Done":"Edit"}</button>
+          <button onClick={clearAll} style={{...base,background:"transparent",color:"rgba(255,255,255,0.6)",border:"none",fontSize:13,cursor:"pointer",padding:"7px 0"}}>Reset</button>
         </div>
       </div>
-      <div style={{padding:"12px 20px 0"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-          <span style={{fontSize:13,color:C.muted}}>{checkedCount} of {totalItems} checked</span>
-          {checkedCount===totalItems&&totalItems>0&&<span style={{fontSize:13,color:C.sage,fontWeight:700}}>All done!</span>}
+      {assignedDays.length>0&&(
+        <div style={{background:"rgba(91,62,140,0.07)",borderBottom:`1px solid rgba(91,62,140,0.12)`,padding:"10px 20px"}}>
+          <div style={{fontSize:12,color:C.plum,fontWeight:600,marginBottom:6}}>This week:</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            {assignedDays.map(d=>{const r=recipes.find(r=>r.id===schedule[d.key]);return r?<span key={d.key} style={{fontSize:12,background:"rgba(91,62,140,0.12)",color:C.plum,borderRadius:20,padding:"3px 10px"}}><strong>{d.label.slice(0,3)}:</strong> {r.title}</span>:null;})}
+          </div>
         </div>
-        <div style={{height:5,background:C.border,borderRadius:3}}>
-          <div style={{height:"100%",width:`${totalItems>0?(checkedCount/totalItems)*100:0}%`,background:C.sage,borderRadius:3,transition:"width 0.3s"}}/>
+      )}
+      {totalItems>0&&(
+        <div style={{padding:"12px 20px 0"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <span style={{fontSize:13,color:C.muted}}>{checkedCount} of {totalItems} checked</span>
+            {checkedCount===totalItems&&totalItems>0&&<span style={{fontSize:13,color:C.sage,fontWeight:700}}>All done!</span>}
+          </div>
+          <div style={{height:5,background:C.border,borderRadius:3}}>
+            <div style={{height:"100%",width:`${totalItems>0?(checkedCount/totalItems)*100:0}%`,background:C.sage,borderRadius:3,transition:"width 0.3s"}}/>
+          </div>
         </div>
-      </div>
+      )}
       <div style={{maxWidth:700,margin:"0 auto",padding:"16px"}}>
-        <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>Ingredients to Buy ({sent.length})</div>
-        {sent.map((item,i)=>{
-          const key=`sent-${item.name}-${item.unit}`; const done=!!checked[key];
-          return (
-            <div key={i} onClick={()=>toggle(key)} style={{display:"flex",alignItems:"center",gap:14,padding:"13px 4px",borderBottom:`1px solid ${C.border}`,cursor:"pointer"}}>
-              <div style={{width:30,height:30,borderRadius:8,flexShrink:0,border:done?"none":`2px solid ${C.border}`,background:done?C.sage:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.2s"}}>{done&&<span style={{color:"#fff",fontSize:18,lineHeight:1}}>&checkmark;</span>}</div>
-              <div style={{flex:1}}>
-                <span style={{fontSize:16,color:done?C.muted:C.ink,textDecoration:done?"line-through":"none"}}>{item.display}</span>
-                {item.recipes&&item.recipes.length>1&&<div style={{fontSize:11,color:C.muted,marginTop:2}}>Used in {item.recipes.length} recipes</div>}
-              </div>
-            </div>
-          );
-        })}
-        {needed.length>0&&<>
-          <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginTop:24,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>Pantry Staples ({needed.length})</div>
-          {needed.map((item,i)=>{
-            const key=`needed-${item}`; const done=!!checked[key];
-            return (
-              <div key={i} onClick={()=>toggle(key)} style={{display:"flex",alignItems:"center",gap:14,padding:"13px 4px",borderBottom:`1px solid ${C.border}`,cursor:"pointer"}}>
-                <div style={{width:30,height:30,borderRadius:8,flexShrink:0,border:done?"none":`2px solid ${C.border}`,background:done?C.sage:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.2s"}}>{done&&<span style={{color:"#fff",fontSize:18,lineHeight:1}}>&checkmark;</span>}</div>
-                <span style={{fontSize:16,color:done?C.muted:C.ink,textDecoration:done?"line-through":"none"}}>{item}</span>
-              </div>
-            );
-          })}
-        </>}
+        <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>Ingredients to Buy ({allSent.length})</div>
+        {allSent.map((item,i)=><SentRow key={item._manualId||`${item.name}-${item.unit}`} item={item} i={i}/>)}
+        <AddItemRow onAdd={addManualSent} placeholder="e.g. 2 lbs ground beef"/>
+
+        <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginTop:24,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>Pantry Staples ({allNeeded.length})</div>
+        {allNeeded.map((item,i)=><NeededRow key={typeof item==="string"?item:item._manualId||item.display} item={item} i={i}/>)}
+        <AddItemRow onAdd={addManualNeeded} placeholder="e.g. olive oil"/>
+
         {tools.length>0&&<>
           <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginTop:24,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>Tools ({tools.length})</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:8,paddingBottom:16}}>{tools.map((t,i)=><span key={i} style={{background:"#F0EDE8",color:C.muted,borderRadius:20,padding:"6px 14px",fontSize:13}}>{t}</span>)}</div>
         </>}
+        {totalItems===0&&<div style={{textAlign:"center",padding:"48px 0",color:C.muted}}>
+          <div style={{fontSize:48,marginBottom:12}}>{"\ud83d\uded2"}</div>
+          <div style={{fontSize:16,fontWeight:700,color:C.ink,marginBottom:6}}>Your list is empty</div>
+          <div style={{fontSize:13}}>Add items above, or plan meals in the Weekly Planner.</div>
+        </div>}
       </div>
     </div>
   );
@@ -1438,10 +1506,11 @@ function App() {
   if(screen==="recipelist"&&activeCategory) return <>{pickBanner}<RecipeListScreen recipes={recipes} categoryId={activeCategory} onBack={()=>setScreen("catalog")} onSelect={r=>goToRecipe(r,false)} onDelete={handleDelete} onAdd={()=>setScreen("scan")}/></>;
   if(screen==="catalog") return <>{pickBanner}<CategoryScreen recipes={recipes} onBack={()=>{if(plannerPickDay){setPlannerPickDay(null);setScreen("planner");}else{setScreen("home");}}} onSelectCategory={id=>{setActiveCategory(id);setScreen("recipelist");}} onAdd={()=>setScreen("scan")}/></>;
   if(screen==="planner") return <PlannerScreen recipes={recipes} schedule={schedule} onUpdateSchedule={handleUpdateSchedule} onBack={()=>setScreen("home")} onViewRecipe={r=>goToRecipe(r,true)} onPickDay={day=>{setPlannerPickDay(day);setActiveCategory(null);setScreen("catalog");}}/>;
+  if(screen==="shopping") return <ShoppingListScreen recipes={recipes} schedule={schedule} onBack={()=>setScreen("home")}/>;
 
   return (
     <>
-      <HomeScreen recipes={recipes} schedule={schedule} onCatalog={()=>setScreen("catalog")} onPlanner={()=>setScreen("planner")} onAdd={()=>{setActiveCategory(null);setScreen("scan");}} onSettings={()=>setShowSettings(true)}/>
+      <HomeScreen recipes={recipes} schedule={schedule} onCatalog={()=>setScreen("catalog")} onPlanner={()=>setScreen("planner")} onShopping={()=>setScreen("shopping")} onAdd={()=>{setActiveCategory(null);setScreen("scan");}} onSettings={()=>setShowSettings(true)}/>
       {migrationPending&&(
         <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:C.card,borderRadius:16,padding:"20px 24px",boxShadow:"0 8px 40px rgba(0,0,0,0.2)",zIndex:999,maxWidth:400,width:"calc(100% - 48px)"}}>
           <div style={{fontSize:15,fontWeight:700,color:C.ink,marginBottom:6}}>Local recipes found</div>
