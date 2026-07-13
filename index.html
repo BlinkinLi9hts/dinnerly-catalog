@@ -1127,6 +1127,7 @@ function ShoppingListScreen({recipes,schedule,onBack}) {
   const toggle=key=>{setChecked(prev=>{const next={...prev,[key]:!prev[key]};saveShopChecked(next);return next;});};
   const clearAll=()=>{saveShopChecked({});setChecked({});};
   const toggleCollapse=id=>setCollapsed(p=>({...p,[id]:!p[id]}));
+  const toggleCollapsePantry=id=>setCollapsedPantry(p=>({...p,[id]:!p[id]}));
 
   // Merge all shoppable items (sent + manual) into one pool for aisle grouping
   const allItems=[
