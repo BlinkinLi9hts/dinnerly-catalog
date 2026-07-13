@@ -1460,7 +1460,7 @@ function App() {
       if(screen==="detail"){if(plannerPickDay){setScreen("recipelist");return;}setScreen(active?.fromPlanner?"planner":"recipelist");return;}
       if(screen==="recipelist"){setScreen("catalog");return;}
       if(screen==="catalog"){if(plannerPickDay){setPlannerPickDay(null);setScreen("planner");return;}setScreen("home");return;}
-      if(screen==="planner"){setScreen("home");return;}
+      if(screen==="planner"||screen==="shopping"||screen==="favorites"){setScreen("home");return;}
       if(screen==="scan"){setScreen(activeCategory?"recipelist":"catalog");return;}
       if(showSettings){setShowSettings(false);return;}
       if(exitPrompt){window.history.back();return;}
@@ -1495,6 +1495,12 @@ function App() {
   const handleUpdatePhoto=async(id,img)=>{
     const next=recipes.map(r=>r.id===id?{...r,frontImage:img}:r); setRecipes(next);
     if(active?.recipe?.id===id)setActive(p=>({...p,recipe:{...p.recipe,frontImage:img}}));
+    showSave("saving");
+    try{await saveRecipes(next);showSave("saved");}catch{showSave("error");}
+  };
+  const handleToggleFavorite=async id=>{
+    const next=recipes.map(r=>r.id===id?{...r,favorite:!r.favorite}:r); setRecipes(next);
+    if(active?.recipe?.id===id)setActive(p=>({...p,recipe:{...p.recipe,favorite:!p.recipe.favorite}}));
     showSave("saving");
     try{await saveRecipes(next);showSave("saved");}catch{showSave("error");}
   };
@@ -1534,20 +1540,21 @@ function App() {
   if(screen==="detail"&&active?.recipe) return (
     <DetailScreen recipe={active.recipe}
       onBack={()=>{if(plannerPickDay){setScreen("recipelist");}else{setScreen(active?.fromPlanner?"planner":"recipelist");}}}
-      onUpdatePhoto={handleUpdatePhoto} onUpdateCategory={handleUpdateCategory}
+      onUpdatePhoto={handleUpdatePhoto} onUpdateCategory={handleUpdateCategory} onToggleFavorite={handleToggleFavorite}
       plannerPickDay={plannerPickDay} plannerDayLabel={plannerPickDay?DAYS_MAP[plannerPickDay]:null}
       onAddToPlanner={()=>handlePlannerPick(active.recipe.id)}
       onCook={(r,g,s)=>{setActive(p=>({...p,recipe:r,guestCount:g,scaledIngredients:s}));setScreen("cook");}}/>
   );
   if(screen==="cook"&&active?.recipe) return <CookScreen recipe={active.recipe} guestCount={active.guestCount} scaledIngredients={active.scaledIngredients} onBack={()=>setScreen("detail")}/>;
-  if(screen==="recipelist"&&activeCategory) return <>{pickBanner}<RecipeListScreen recipes={recipes} categoryId={activeCategory} onBack={()=>setScreen("catalog")} onSelect={r=>goToRecipe(r,false)} onDelete={handleDelete} onAdd={()=>setScreen("scan")}/></>;
+  if(screen==="recipelist"&&activeCategory) return <>{pickBanner}<RecipeListScreen recipes={recipes} categoryId={activeCategory} onBack={()=>setScreen("catalog")} onSelect={r=>goToRecipe(r,false)} onDelete={handleDelete} onAdd={()=>setScreen("scan")} onToggleFavorite={handleToggleFavorite}/></>;
+  if(screen==="favorites") return <FavoritesScreen recipes={recipes} onBack={()=>setScreen("home")} onSelect={r=>goToRecipe(r,false)} onDelete={handleDelete} onToggleFavorite={handleToggleFavorite}/>;
   if(screen==="catalog") return <>{pickBanner}<CategoryScreen recipes={recipes} onBack={()=>{if(plannerPickDay){setPlannerPickDay(null);setScreen("planner");}else{setScreen("home");}}} onSelectCategory={id=>{setActiveCategory(id);setScreen("recipelist");}} onAdd={()=>setScreen("scan")}/></>;
   if(screen==="planner") return <PlannerScreen recipes={recipes} schedule={schedule} onUpdateSchedule={handleUpdateSchedule} onBack={()=>setScreen("home")} onViewRecipe={r=>goToRecipe(r,true)} onPickDay={day=>{setPlannerPickDay(day);setActiveCategory(null);setScreen("catalog");}}/>;
   if(screen==="shopping") return <ShoppingListScreen recipes={recipes} schedule={schedule} onBack={()=>setScreen("home")}/>;
 
   return (
     <>
-      <HomeScreen recipes={recipes} schedule={schedule} onCatalog={()=>setScreen("catalog")} onPlanner={()=>setScreen("planner")} onShopping={()=>setScreen("shopping")} onAdd={()=>{setActiveCategory(null);setScreen("scan");}} onSettings={()=>setShowSettings(true)}/>
+      <HomeScreen recipes={recipes} schedule={schedule} onCatalog={()=>setScreen("catalog")} onPlanner={()=>setScreen("planner")} onShopping={()=>setScreen("shopping")} onFavorites={()=>setScreen("favorites")} onAdd={()=>{setActiveCategory(null);setScreen("scan");}} onSettings={()=>setShowSettings(true)}/>
       {migrationPending&&(
         <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:C.card,borderRadius:16,padding:"20px 24px",boxShadow:"0 8px 40px rgba(0,0,0,0.2)",zIndex:999,maxWidth:400,width:"calc(100% - 48px)"}}>
           <div style={{fontSize:15,fontWeight:700,color:C.ink,marginBottom:6}}>Local recipes found</div>
