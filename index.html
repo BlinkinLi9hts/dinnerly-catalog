@@ -1843,7 +1843,7 @@ function App() {
 
   return (
     <>
-      <HomeScreen recipes={recipes} schedule={schedule} onCatalog={()=>setScreen("catalog")} onPlanner={()=>setScreen("planner")} onShopping={()=>setScreen("shopping")} onFavorites={()=>setScreen("favorites")} onAdd={()=>{setActiveCategory(null);setScreen("scan");}} onSettings={()=>setShowSettings(true)}/>
+      <HomeScreen recipes={recipes} schedule={schedule} onCatalog={()=>setScreen("catalog")} onPlanner={()=>setScreen("planner")} onShopping={()=>setScreen("shopping")} onFavorites={()=>setScreen("favorites")} onAdd={()=>{setActiveCategory(null);setScreen("scan");}} onSettings={()=>setShowSettings(true)} onBattle={()=>setScreen("battle")}/>
       {migrationPending&&(
         <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:C.card,borderRadius:16,padding:"20px 24px",boxShadow:"0 8px 40px rgba(0,0,0,0.2)",zIndex:999,maxWidth:400,width:"calc(100% - 48px)"}}>
           <div style={{fontSize:15,fontWeight:700,color:C.ink,marginBottom:6}}>Local recipes found</div>
