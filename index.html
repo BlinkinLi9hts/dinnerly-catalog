@@ -99,8 +99,9 @@ Return ONLY valid JSON, no markdown, no backticks:
 }
 Rules:
 - servings must be a NUMBER (integer)
-- ingredientsSent: each needs qty (number) + unit (string) + display (original text) + name
-- ingredientsNeeded: simple string array, no measurements
+- ingredientsSent: ONLY items from "What We Send" that have a clear quantity and unit. qty must be a positive number.
+- ingredientsNeeded: items from "What You Need" AND any ingredient with no quantity, "to taste", or that is a pantry staple like salt, pepper, oil, butter, water
+- Do NOT put "to taste" items or unmeasured items in ingredientsSent
 - tools: simple string array
 - Each step needs a SHORT title (2-4 words) and body (full instruction)
 - Split compound paragraphs into individual steps`}
@@ -108,7 +109,22 @@ Rules:
   const clean=text.replace(/```json|```/g,"").trim();
   const parsed=JSON.parse(clean);
   if (!parsed.ingredients) parsed.ingredients=parsed.ingredientsSent||[];
-  return parsed;
+  // Post-process: move "to taste" / zero-qty items from ingredientsSent to ingredientsNeeded
+  return cleanIngredients(parsed);
+}
+
+function cleanIngredients(parsed) {
+  const TO_TASTE=/to taste|as needed|as desired|to season|pinch of/i;
+  const sent=[]; const extra=[];
+  (parsed.ingredientsSent||parsed.ingredients||[]).forEach(ing=>{
+    if (!ing.qty || ing.qty<=0 || TO_TASTE.test(ing.display||"") || TO_TASTE.test(ing.name||"")) {
+      extra.push(ing.display||ing.name);
+    } else {
+      sent.push(ing);
+    }
+  });
+  const needed=Array.from(new Set([...(parsed.ingredientsNeeded||[]),...extra]));
+  return {...parsed, ingredientsSent:sent, ingredients:sent, ingredientsNeeded:needed};
 }
 
 function formatQty(qty,unit,name) {
