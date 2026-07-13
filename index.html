@@ -437,20 +437,120 @@ function CategoryScreen({recipes,onSelectCategory,onBack,onAdd}) {
 
 function RecipeListScreen({recipes,categoryId,onBack,onSelect,onDelete,onAdd}) {
   const cat=getCategoryInfo(categoryId);
-  const filtered=recipes.filter(r=>detectCategory(r.title,r.category)===categoryId);
-  return (
-    <div style={{...base,minHeight:"100vh",background:C.paper}}>
-      <div style={{background:C.sage,padding:"18px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+  const filtered=useMemo(()=>
+    recipes.filter(r=>detectCategory(r.title,r.category)===categoryId)
+      .slice().sort((a,b)=>a.title.localeCompare(b.title))
+  ,[recipes,categoryId]);
+
+  const groups=useMemo(()=>{
+    const g={};
+    filtered.forEach(r=>{
+      const l=r.title.trim().replace(/^(a |an |the )/i,"")[0]?.toUpperCase()||"#";
+      if(!g[l])g[l]=[];
+      g[l].push(r);
+    });
+    return Object.entries(g).sort(([a],[b])=>a.localeCompare(b));
+  },[filtered]);
+
+  const letters=groups.map(([l])=>l);
+  const scrollRef=useRef(null);
+  const sectionRefs=useRef({});
+  const alphaRef=useRef(null);
+  const [activeLetter,setActiveLetter]=useState(null);
+
+  const jumpTo=useCallback(letter=>{
+    const el=sectionRefs.current[letter];
+    if(el&&scrollRef.current){
+      scrollRef.current.scrollTo({top:el.offsetTop-8,behavior:"smooth"});
+      setActiveLetter(letter);
+      setTimeout(()=>setActiveLetter(null),800);
+    }
+  },[]);
+
+  const handleAlphaTouch=useCallback(e=>{
+    e.preventDefault();
+    const bar=alphaRef.current; if(!bar) return;
+    const touch=e.touches?e.touches[0]:e;
+    const rect=bar.getBoundingClientRect();
+    const y=touch.clientY-rect.top;
+    const idx=Math.max(0,Math.min(letters.length-1,Math.floor((y/rect.height)*letters.length)));
+    jumpTo(letters[idx]);
+  },[letters,jumpTo]);
+
+  if(filtered.length===0) return (
+    <div style={{...base,height:"100vh",background:C.paper,display:"flex",flexDirection:"column"}}>
+      <div style={{background:C.sage,padding:"18px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
         <button onClick={onBack} style={{...btnG,color:"rgba(255,255,255,0.8)",borderColor:"rgba(255,255,255,0.3)",padding:"7px 14px",fontSize:13}}>&larr; Back</button>
         <div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:22}}>{cat.emoji}</span><span style={{color:"#fff",fontWeight:700,fontSize:18}}>{cat.label}</span></div>
         <button onClick={onAdd} style={{...btnP,background:C.orange,padding:"8px 14px",fontSize:13}}>+ Scan</button>
       </div>
-      <div style={{maxWidth:900,margin:"0 auto",padding:"28px 24px"}}>
-        {filtered.length===0?(
-          <div style={{textAlign:"center",padding:"60px 0",color:C.muted}}><div style={{fontSize:15}}>No recipes in this category yet.</div></div>
-        ):(
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:20}}>
-            {filtered.map(r=><LibraryCard key={r.id} recipe={r} onSelect={()=>onSelect(r)} onDelete={()=>onDelete(r.id)}/>)}
+      <div style={{textAlign:"center",padding:"60px 24px",color:C.muted}}><div style={{fontSize:15}}>No recipes in this category yet.</div></div>
+    </div>
+  );
+
+  return (
+    <div style={{...base,height:"100vh",background:C.paper,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <div style={{background:C.sage,padding:"18px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+        <button onClick={onBack} style={{...btnG,color:"rgba(255,255,255,0.8)",borderColor:"rgba(255,255,255,0.3)",padding:"7px 14px",fontSize:13}}>&larr; Back</button>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:22}}>{cat.emoji}</span>
+          <span style={{color:"#fff",fontWeight:700,fontSize:18}}>{cat.label}</span>
+          <span style={{fontSize:13,color:"rgba(255,255,255,0.65)",fontWeight:400}}>({filtered.length})</span>
+        </div>
+        <button onClick={onAdd} style={{...btnP,background:C.orange,padding:"8px 14px",fontSize:13}}>+ Scan</button>
+      </div>
+
+      <div style={{flex:1,display:"flex",overflow:"hidden",position:"relative"}}>
+        <div ref={scrollRef} style={{flex:1,overflowY:"auto",padding:"16px 16px 32px",WebkitOverflowScrolling:"touch"}}>
+          <div style={{maxWidth:900,margin:"0 auto",paddingRight:letters.length>=5?30:0}}>
+            {groups.map(([letter,recs])=>(
+              <div key={letter} ref={el=>sectionRefs.current[letter]=el} style={{marginBottom:24}}>
+                <div style={{
+                  fontSize:13,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",
+                  color:activeLetter===letter?C.sageDark:C.muted,
+                  background:activeLetter===letter?C.sageLight:"transparent",
+                  borderRadius:8,padding:"5px 12px",marginBottom:10,
+                  display:"inline-block",
+                  border:`1px solid ${activeLetter===letter?C.border:"transparent"}`,
+                  transition:"all 0.2s",
+                }}>
+                  {letter} <span style={{fontWeight:400}}>— {recs.length}</span>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:16}}>
+                  {recs.map(r=><LibraryCard key={r.id} recipe={r} onSelect={()=>onSelect(r)} onDelete={()=>onDelete(r.id)}/>)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {letters.length>=5&&(
+          <div
+            ref={alphaRef}
+            onTouchStart={handleAlphaTouch}
+            onTouchMove={handleAlphaTouch}
+            onClick={handleAlphaTouch}
+            style={{
+              position:"absolute",right:0,top:0,bottom:0,
+              width:28,display:"flex",flexDirection:"column",
+              alignItems:"center",justifyContent:"center",
+              background:"rgba(245,242,237,0.95)",
+              borderLeft:`1px solid ${C.border}`,
+              zIndex:10,userSelect:"none",touchAction:"none",
+              paddingTop:8,paddingBottom:8,gap:1,
+            }}
+          >
+            {letters.map(l=>(
+              <div key={l} onClick={e=>{e.stopPropagation();jumpTo(l);}}
+                style={{
+                  fontSize:11,fontWeight:700,
+                  color:activeLetter===l?C.sage:C.muted,
+                  lineHeight:1,padding:"3px 4px",cursor:"pointer",
+                  minHeight:18,display:"flex",alignItems:"center",
+                  transition:"color 0.15s",
+                }}
+              >{l}</div>
+            ))}
           </div>
         )}
       </div>
