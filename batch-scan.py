@@ -8,10 +8,10 @@ and saves extracted recipes to Cloudflare KV.
 Setup:
     pip install pdf2image pillow requests
     Install Poppler for Windows: https://github.com/oschwartz10612/poppler-windows/releases
-    Add Poppler bin folder to PATH (e.g. C:\poppler\Library\bin)
+    Add Poppler bin folder to PATH (e.g. C:/poppler/Library/bin)
 
 Usage:
-    1. Place fronts.pdf and backs.pdf in the scan-inbox\ folder
+    1. Place fronts.pdf and backs.pdf in the scan-inbox folder
     2. Set your ANTHROPIC_API_KEY and DINNERLY_SECRET below (or as env vars)
     3. Run: python batch-scan.py
 """
@@ -25,34 +25,34 @@ import requests
 from pathlib import Path
 from datetime import datetime, timezone
 
-# ── CONFIG ────────────────────────────────────────────────────────────────────
+# -- CONFIG -------------------------------------------------------------------
 
-SCAN_INBOX   = Path(__file__).parent / "scan-inbox"
-FRONTS_PDF   = SCAN_INBOX / "fronts.pdf"
-BACKS_PDF    = SCAN_INBOX / "backs.pdf"
-DONE_DIR     = SCAN_INBOX / "done"
-LOG_FILE     = SCAN_INBOX / "scan-log.txt"
+SCAN_INBOX    = Path(__file__).parent / "scan-inbox"
+FRONTS_PDF    = SCAN_INBOX / "fronts.pdf"
+BACKS_PDF     = SCAN_INBOX / "backs.pdf"
+DONE_DIR      = SCAN_INBOX / "done"
+LOG_FILE      = SCAN_INBOX / "scan-log.txt"
 
-API_URL      = "https://dinnerly-catalog.pages.dev/api/recipes"
-CLAUDE_URL   = "https://api.anthropic.com/v1/messages"
-CLAUDE_MODEL = "claude-sonnet-4-6"
+API_URL       = "https://dinnerly-catalog.pages.dev/api/recipes"
+CLAUDE_URL    = "https://api.anthropic.com/v1/messages"
+CLAUDE_MODEL  = "claude-sonnet-4-6"
 
 # Read from environment or set directly here
-ANTHROPIC_KEY  = os.environ.get("ANTHROPIC_API_KEY", "")
+ANTHROPIC_KEY   = os.environ.get("ANTHROPIC_API_KEY", "")
 DINNERLY_SECRET = os.environ.get("DINNERLY_SECRET", "")
 
 # Processing settings
-DPI              = 150    # Lower = faster; 150 is fine for card text
-JPEG_QUALITY     = 0.82   # Match app's quality
-MAX_WIDTH        = 1200   # Match app's crop output
-MAX_HEIGHT       = 675    # 16:9
-DELAY_BETWEEN    = 3      # Seconds between Claude API calls (rate limiting)
+DPI           = 150    # Lower = faster; 150 is fine for card text
+JPEG_QUALITY  = 82     # Match app quality (0-100)
+MAX_WIDTH     = 1200   # Match app crop output
+MAX_HEIGHT    = 675    # 16:9
+DELAY_BETWEEN = 3      # Seconds between Claude API calls (rate limiting)
 
-# ── HELPERS ───────────────────────────────────────────────────────────────────
+# -- HELPERS ------------------------------------------------------------------
 
 def log(msg, also_print=True):
     ts = datetime.now().strftime("%H:%M:%S")
-    line = f"[{ts}] {msg}"
+    line = "[{}] {}".format(ts, msg)
     if also_print:
         print(line)
     with open(LOG_FILE, "a", encoding="utf-8") as f:
@@ -60,36 +60,25 @@ def log(msg, also_print=True):
 
 
 def image_to_base64(img):
-    """Convert PIL image to base64 JPEG string."""
     from io import BytesIO
     buf = BytesIO()
-    img.save(buf, format="JPEG", quality=int(JPEG_QUALITY * 100))
+    img.save(buf, format="JPEG", quality=JPEG_QUALITY)
     return base64.b64encode(buf.getvalue()).decode("utf-8")
 
 
 def autocrop_16_9(img):
-    """Crop image to centered 16:9 at MAX_WIDTH x MAX_HEIGHT."""
     from PIL import Image
-    # Resize to fit within MAX_WIDTH maintaining aspect, then center-crop to 16:9
     w, h = img.size
-    target_w, target_h = MAX_WIDTH, MAX_HEIGHT
-    target_ratio = target_w / target_h
-
-    # Scale so the image covers the target dimensions
-    scale = max(target_w / w, target_h / h)
+    scale = max(MAX_WIDTH / w, MAX_HEIGHT / h)
     new_w = int(w * scale)
     new_h = int(h * scale)
     img = img.resize((new_w, new_h), Image.LANCZOS)
-
-    # Center crop
-    left = (new_w - target_w) // 2
-    top  = (new_h - target_h) // 2
-    img = img.crop((left, top, left + target_w, top + target_h))
-    return img
+    left = (new_w - MAX_WIDTH) // 2
+    top  = (new_h - MAX_HEIGHT) // 2
+    return img.crop((left, top, left + MAX_WIDTH, top + MAX_HEIGHT))
 
 
 def fuzzy_match(title_a, title_b):
-    """≥60% word overlap — mirrors app's duplicate detection."""
     import re
     def words(s):
         s = re.sub(r"[^a-z0-9\s]", "", s.lower()).strip()
@@ -102,29 +91,30 @@ def fuzzy_match(title_a, title_b):
 
 
 def call_claude(front_b64, back_b64):
-    """Send front+back images to Claude, return parsed recipe dict."""
     headers = {
         "Content-Type": "application/json",
         "x-api-key": ANTHROPIC_KEY,
         "anthropic-version": "2023-06-01",
     }
-    prompt = """This is the FRONT of a Dinnerly recipe card (title, photo, time, servings).
-The second image is the BACK of the same card.
-Extract these sections:
-1. "What We Send" -- main ingredients with measurements
-2. "What You Need" -- pantry staples
-3. "Tools" -- kitchen utensils
-4. Steps / instructions
-
-Return ONLY valid JSON, no markdown:
-{"title":"...","servings":4,"totalTime":"20 min",
-"ingredientsSent":[{"name":"elbow macaroni","qty":0.5,"unit":"lb","display":"1/2 lb elbow macaroni"}],
-"ingredientsNeeded":["kosher salt","olive oil"],
-"tools":["medium saucepan"],
-"steps":[{"title":"Cook pasta","body":"Full instruction."}],
-"nutrition":{"calories":780,"protein":"46g","carbs":"71g","fat":"30g"}}
-Rules: servings=integer; ingredientsSent only items with clear qty+unit; ingredientsNeeded=pantry+unmeasured; no "to taste" in ingredientsSent; each step needs short title+body."""
-
+    prompt = (
+        "This is the FRONT of a Dinnerly recipe card (title, photo, time, servings). "
+        "The second image is the BACK of the same card.\n"
+        "Extract these sections:\n"
+        "1. What We Send -- main ingredients with measurements\n"
+        "2. What You Need -- pantry staples\n"
+        "3. Tools -- kitchen utensils\n"
+        "4. Steps / instructions\n\n"
+        "Return ONLY valid JSON, no markdown:\n"
+        '{"title":"...","servings":4,"totalTime":"20 min",'
+        '"ingredientsSent":[{"name":"elbow macaroni","qty":0.5,"unit":"lb","display":"1/2 lb elbow macaroni"}],'
+        '"ingredientsNeeded":["kosher salt","olive oil"],'
+        '"tools":["medium saucepan"],'
+        '"steps":[{"title":"Cook pasta","body":"Full instruction."}],'
+        '"nutrition":{"calories":780,"protein":"46g","carbs":"71g","fat":"30g"}}\n'
+        "Rules: servings=integer; ingredientsSent only items with clear qty+unit; "
+        "ingredientsNeeded=pantry+unmeasured; no to taste in ingredientsSent; "
+        "each step needs short title+body."
+    )
     body = {
         "model": CLAUDE_MODEL,
         "max_tokens": 2000,
@@ -138,7 +128,6 @@ Rules: servings=integer; ingredientsSent only items with clear qty+unit; ingredi
             ]
         }]
     }
-
     resp = requests.post(CLAUDE_URL, headers=headers, json=body, timeout=60)
     resp.raise_for_status()
     text = resp.json()["content"][0]["text"]
@@ -147,14 +136,12 @@ Rules: servings=integer; ingredientsSent only items with clear qty+unit; ingredi
 
 
 def fetch_existing_recipes():
-    """Fetch all recipes currently in KV."""
     resp = requests.get(API_URL, timeout=30)
     resp.raise_for_status()
     return resp.json()
 
 
 def save_recipes(recipes):
-    """POST full recipes array to KV."""
     headers = {
         "Content-Type": "application/json",
         "X-Dinnerly-Secret": DINNERLY_SECRET,
@@ -163,203 +150,180 @@ def save_recipes(recipes):
     resp.raise_for_status()
 
 
-def prompt_user(msg):
-    """Pause and ask user a yes/no question. Returns True for yes/skip, False for retry."""
-    print(f"\n⚠️  {msg}")
+def prompt_user(card_num, err):
+    print("\n  Card {} failed: {}".format(card_num, err))
     while True:
-        choice = input("   [s] Skip this card  [r] Retry  [q] Quit: ").strip().lower()
-        if choice == "s":
-            return "skip"
-        elif choice == "r":
-            return "retry"
-        elif choice == "q":
-            return "quit"
+        choice = input("  [s] Skip  [r] Retry  [q] Quit: ").strip().lower()
+        if choice in ("s", "r", "q"):
+            return choice
 
 
-# ── MAIN ──────────────────────────────────────────────────────────────────────
+# -- MAIN ---------------------------------------------------------------------
 
 def main():
-    # Validate config
     if not ANTHROPIC_KEY:
-        print("ERROR: ANTHROPIC_API_KEY not set. Set as environment variable or edit batch-scan.py.")
+        print("ERROR: ANTHROPIC_API_KEY not set.")
         sys.exit(1)
     if not DINNERLY_SECRET:
-        print("ERROR: DINNERLY_SECRET not set. Set as environment variable or edit batch-scan.py.")
+        print("ERROR: DINNERLY_SECRET not set.")
         sys.exit(1)
     if not FRONTS_PDF.exists():
-        print(f"ERROR: {FRONTS_PDF} not found.")
+        print("ERROR: {} not found.".format(FRONTS_PDF))
         sys.exit(1)
     if not BACKS_PDF.exists():
-        print(f"ERROR: {BACKS_PDF} not found.")
+        print("ERROR: {} not found.".format(BACKS_PDF))
         sys.exit(1)
 
     DONE_DIR.mkdir(parents=True, exist_ok=True)
-    SCAN_INBOX.mkdir(parents=True, exist_ok=True)
 
-    # Write log header
     with open(LOG_FILE, "a", encoding="utf-8") as f:
-        f.write(f"\n{'='*60}\n")
-        f.write(f"Batch scan started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        f.write(f"{'='*60}\n")
+        f.write("\n" + "="*60 + "\n")
+        f.write("Batch scan started: {}\n".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        f.write("="*60 + "\n")
 
-    # Import pdf2image here so error is clear
     try:
         from pdf2image import convert_from_path
     except ImportError:
         print("ERROR: pdf2image not installed. Run: pip install pdf2image pillow")
         sys.exit(1)
 
-    print("\n📄 Loading PDFs...")
+    print("\nLoading PDFs...")
     try:
         front_pages = convert_from_path(str(FRONTS_PDF), dpi=DPI)
         back_pages  = convert_from_path(str(BACKS_PDF),  dpi=DPI)
     except Exception as e:
-        print(f"ERROR loading PDFs: {e}")
+        print("ERROR loading PDFs: {}".format(e))
         print("Make sure Poppler is installed and on your PATH.")
         sys.exit(1)
 
     total = len(front_pages)
     if len(back_pages) != total:
-        print(f"WARNING: fronts.pdf has {total} pages, backs.pdf has {len(back_pages)} pages.")
+        print("WARNING: fronts.pdf has {} pages, backs.pdf has {} pages.".format(total, len(back_pages)))
         total = min(total, len(back_pages))
-        print(f"Processing {total} pairs only.\n")
+        print("Processing {} pairs only.".format(total))
 
-    print(f"✅ Found {total} card pairs to process.\n")
+    print("Found {} card pairs to process.\n".format(total))
 
-    # Fetch existing recipes for duplicate checking
-    print("☁️  Fetching existing recipes from KV...")
+    print("Fetching existing recipes from KV...")
     try:
         existing = fetch_existing_recipes()
-        print(f"   {len(existing)} recipes already in catalog.\n")
+        print("  {} recipes already in catalog.\n".format(len(existing)))
     except Exception as e:
-        print(f"ERROR fetching existing recipes: {e}")
+        print("ERROR fetching existing recipes: {}".format(e))
         sys.exit(1)
 
-    # Track new recipes to add
     new_recipes = []
     stats = {"saved": 0, "skipped_dup": 0, "skipped_user": 0, "failed": 0}
 
     for i in range(total):
         card_num = i + 1
-        print(f"[{card_num}/{total}] Processing card...", end=" ", flush=True)
+        print("[{}/{}] Processing...".format(card_num, total), end=" ", flush=True)
 
-        front_img = front_pages[i]
-        back_img  = back_pages[i]
-
-        # Auto-crop front to 16:9
-        front_cropped = autocrop_16_9(front_img)
+        front_cropped = autocrop_16_9(front_pages[i])
         front_b64 = image_to_base64(front_cropped)
-        back_b64  = image_to_base64(back_img)
+        back_b64  = image_to_base64(back_pages[i])
 
-        attempt = 0
         while True:
-            attempt += 1
             try:
                 recipe = call_claude(front_b64, back_b64)
             except Exception as e:
-                log(f"Card {card_num}: Claude API error — {e}", also_print=False)
-                print(f"FAILED (API error: {e})")
-                action = prompt_user(f"Card {card_num} — Claude API error: {e}")
-                if action == "skip":
+                log("Card {}: API error -- {}".format(card_num, e), also_print=False)
+                print("FAILED")
+                action = prompt_user(card_num, e)
+                if action == "s":
                     stats["failed"] += 1
-                    log(f"Card {card_num}: SKIPPED after API error")
+                    log("Card {}: SKIPPED after error".format(card_num))
                     break
-                elif action == "retry":
-                    print(f"   Retrying card {card_num}...")
+                elif action == "r":
+                    print("  Retrying...")
                     time.sleep(5)
                     continue
                 else:
-                    print("\nQuitting. Progress so far will be saved.")
+                    print("\nQuitting. Saving progress...")
                     _save_progress(existing, new_recipes, stats)
                     sys.exit(0)
 
-            # Check for duplicate
             title = recipe.get("title", "").strip()
             all_titles = [r["title"] for r in existing] + [r["title"] for r in new_recipes]
             dup = next((t for t in all_titles if fuzzy_match(title, t)), None)
 
             if dup:
-                print(f"DUPLICATE — "{title}" matches "{dup}"")
-                log(f"Card {card_num}: DUPLICATE — "{title}" matches "{dup}"")
+                msg = 'Card {}: DUPLICATE -- "{}" matches "{}"'.format(card_num, title, dup)
+                print('DUPLICATE -- matches "{}"'.format(dup))
+                log(msg, also_print=False)
                 stats["skipped_dup"] += 1
                 break
 
-            # Build full recipe object matching app schema
             full_recipe = {
                 "id": int(datetime.now(timezone.utc).timestamp() * 1000) + i,
                 "addedAt": datetime.now(timezone.utc).isoformat(),
                 "title": title,
                 "servings": recipe.get("servings", 4),
                 "totalTime": recipe.get("totalTime", ""),
-                "frontImage": f"data:image/jpeg;base64,{front_b64}",
+                "frontImage": "data:image/jpeg;base64," + front_b64,
                 "ingredientsSent": recipe.get("ingredientsSent", []),
-                "ingredients": recipe.get("ingredientsSent", []),  # legacy compat
+                "ingredients": recipe.get("ingredientsSent", []),
                 "ingredientsNeeded": recipe.get("ingredientsNeeded", []),
                 "tools": recipe.get("tools", []),
                 "steps": recipe.get("steps", []),
                 "nutrition": recipe.get("nutrition", None),
-                "category": None,  # app will auto-detect from title
+                "category": None,
                 "favorite": False,
             }
 
             new_recipes.append(full_recipe)
-            print(f"✓ "{title}"")
-            log(f"Card {card_num}: SAVED — "{title}"")
+            print('OK -- "{}"'.format(title))
+            log('Card {}: SAVED -- "{}"'.format(card_num, title), also_print=False)
             stats["saved"] += 1
             break
 
-        # Save to KV every 10 cards as a checkpoint
-        if len(new_recipes) > 0 and len(new_recipes) % 10 == 0:
-            print(f"\n   💾 Checkpoint: saving {len(new_recipes)} new recipes to KV...")
+        # Checkpoint every 10 cards
+        if new_recipes and len(new_recipes) % 10 == 0:
+            print("\n  Checkpoint: saving {} recipes to KV...".format(len(new_recipes)), end=" ")
             try:
                 save_recipes(existing + new_recipes)
-                print("   Saved.\n")
+                print("done.\n")
             except Exception as e:
-                log(f"Checkpoint save failed: {e}")
-                print(f"   WARNING: checkpoint save failed: {e}\n")
+                print("WARNING: checkpoint failed: {}\n".format(e))
 
-        # Rate limit
         if i < total - 1:
             time.sleep(DELAY_BETWEEN)
 
-    # Final save
     _save_progress(existing, new_recipes, stats)
 
 
 def _save_progress(existing, new_recipes, stats):
     if new_recipes:
-        print(f"\n💾 Saving {len(new_recipes)} new recipes to KV...")
+        print("\nSaving {} new recipes to KV...".format(len(new_recipes)), end=" ")
         try:
             save_recipes(existing + new_recipes)
-            print("✅ Saved successfully.")
+            print("done.")
         except Exception as e:
-            log(f"Final save failed: {e}")
-            print(f"ERROR saving to KV: {e}")
-            # Dump to local JSON as fallback
-            fallback = Path(__file__).parent / "scan-inbox" / "unsaved-recipes.json"
+            log("Final save failed: {}".format(e))
+            print("ERROR: {}".format(e))
+            fallback = SCAN_INBOX / "unsaved-recipes.json"
             with open(fallback, "w", encoding="utf-8") as f:
                 json.dump(new_recipes, f, indent=2)
-            print(f"Recipes saved locally to {fallback} as fallback.")
+            print("Recipes saved locally to {} as fallback.".format(fallback))
 
-    # Move processed PDFs to done/
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    for pdf in [Path(__file__).parent / "scan-inbox" / "fronts.pdf",
-                Path(__file__).parent / "scan-inbox" / "backs.pdf"]:
+    for pdf in [FRONTS_PDF, BACKS_PDF]:
         if pdf.exists():
-            dest = Path(__file__).parent / "scan-inbox" / "done" / f"{pdf.stem}_{ts}.pdf"
-            pdf.rename(dest)
+            pdf.rename(DONE_DIR / "{}_{}.pdf".format(pdf.stem, ts))
 
     summary = (
-        f"\n{'='*60}\n"
-        f"Batch complete: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-        f"  Saved:           {stats['saved']}\n"
-        f"  Duplicates skipped: {stats['skipped_dup']}\n"
-        f"  User skipped:    {stats['skipped_user']}\n"
-        f"  Failed:          {stats['failed']}\n"
-        f"{'='*60}\n"
+        "\n" + "="*60 + "\n"
+        "Batch complete: {}\n"
+        "  Saved:              {}\n"
+        "  Duplicates skipped: {}\n"
+        "  User skipped:       {}\n"
+        "  Failed:             {}\n"
+        + "="*60 + "\n"
+    ).format(
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        stats["saved"], stats["skipped_dup"], stats["skipped_user"], stats["failed"]
     )
     log(summary)
-    print(summary)
 
 
 if __name__ == "__main__":
