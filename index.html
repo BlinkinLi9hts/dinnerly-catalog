@@ -1639,11 +1639,6 @@ function BattleScreen({recipes,onBack,onConfirm}) {
   }
 
   // RESULTS SCREEN
-  const dayKeys=["mon","tue","wed","thu","fri","sat","sun"];
-  const dayLabels=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
-  const dayShort=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-  const [assignedDays,setAssignedDays]=useState(()=>winners.map((_,i)=>dayKeys[i]||"mon"));
-  const updateDay=(winnerIdx,day)=>setAssignedDays(prev=>{const n=[...prev];n[winnerIdx]=day;return n;});
   const handleConfirm=()=>{
     const newSchedule={};
     winners.forEach((r,i)=>{ if(assignedDays[i]) newSchedule[assignedDays[i]]=r.id; });
