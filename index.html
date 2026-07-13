@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Dinnerly Recipe Catalog v2.6</title>
+<title>Dinnerly Recipe Catalog v2.7</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -28,8 +28,8 @@ const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
 const API_KEY_STORAGE  = "dinnerly-api-key";
 const SECRET_STORAGE   = "dinnerly-secret";
-const STORAGE_KEY      = "dinnerly-recipes-v2";  // legacy local only
-const SCHEDULE_KEY     = "dinnerly-schedule-v1"; // legacy local only
+const STORAGE_KEY      = "dinnerly-recipes-v2";
+const SCHEDULE_KEY     = "dinnerly-schedule-v1";
 const SHOP_CHECKED_KEY = "dinnerly-shop-checked-v1";
 
 function getApiKey() { return localStorage.getItem(API_KEY_STORAGE) || ""; }
@@ -37,7 +37,6 @@ function setApiKey(k) { localStorage.setItem(API_KEY_STORAGE, k); }
 function getDinnSecret() { return localStorage.getItem(SECRET_STORAGE) || ""; }
 function setDinnSecret(k) { localStorage.setItem(SECRET_STORAGE, k); }
 
-// Cloud API helpers
 async function cloudGet(endpoint) {
   const res = await fetch(`/api/${endpoint}`);
   if (!res.ok) throw new Error(`GET /api/${endpoint} failed: ${res.status}`);
@@ -56,25 +55,12 @@ async function cloudPost(endpoint, data) {
   }
   return res.json();
 }
-
-async function loadRecipes() {
-  try { return await cloudGet("recipes"); }
-  catch { return []; }
-}
-async function saveRecipes(recipes) {
-  try { await cloudPost("recipes", recipes); } catch(e) { console.error("saveRecipes:", e); }
-}
-async function loadSchedule() {
-  try { return await cloudGet("schedule"); }
-  catch { return {}; }
-}
-async function saveSchedule(s) {
-  try { await cloudPost("schedule", s); } catch(e) { console.error("saveSchedule:", e); }
-}
+async function loadRecipes() { try { return await cloudGet("recipes"); } catch { return []; } }
+async function saveRecipes(r) { try { await cloudPost("recipes", r); } catch(e) { console.error("saveRecipes:", e); } }
+async function loadSchedule() { try { return await cloudGet("schedule"); } catch { return {}; } }
+async function saveSchedule(s) { try { await cloudPost("schedule", s); } catch(e) { console.error("saveSchedule:", e); } }
 function loadShopChecked() { try { const c=localStorage.getItem(SHOP_CHECKED_KEY); return c?JSON.parse(c):{}; } catch { return {}; } }
 function saveShopChecked(c) { try { localStorage.setItem(SHOP_CHECKED_KEY, JSON.stringify(c)); } catch {} }
-
-// Check if user has local recipes that haven't been migrated yet
 function getLocalRecipes() { try { const r=localStorage.getItem(STORAGE_KEY); return r?JSON.parse(r):[]; } catch { return []; } }
 function getLocalSchedule() { try { const s=localStorage.getItem(SCHEDULE_KEY); return s?JSON.parse(s):{}; } catch { return {}; } }
 function clearLocalData() { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(SCHEDULE_KEY); }
@@ -107,71 +93,52 @@ function compressImage(dataUrl, maxWidth=800, quality=0.72) {
   });
 }
 
-function imgBlock(base64,mediaType) { return {type:"image",source:{type:"base64",media_type:mediaType,data:base64}}; }
+function imgBlock(b64,mt) { return {type:"image",source:{type:"base64",media_type:mt,data:b64}}; }
 
-async function parseRecipeCards(frontB64,frontType,backB64,backType) {
+async function parseRecipeCards(fB64,fType,bB64,bType) {
   const text=await callClaude([{role:"user",content:[
-    imgBlock(frontB64,frontType),
+    imgBlock(fB64,fType),
     {type:"text",text:"This is the FRONT of a Dinnerly recipe card (title, photo, time, servings)."},
-    imgBlock(backB64,backType),
+    imgBlock(bB64,bType),
     {type:"text",text:`This is the BACK of the same Dinnerly recipe card.
-Dinnerly cards have these distinct sections -- extract each separately:
+Extract these sections:
 1. "What We Send" -- main ingredients with measurements
-2. "What You Need" -- pantry staples, rarely have measurements (e.g. "kosher salt", "olive oil")
-3. "Tools" -- kitchen utensils needed (e.g. "medium saucepan", "large skillet")
+2. "What You Need" -- pantry staples
+3. "Tools" -- kitchen utensils
 4. Steps / instructions
 
-Return ONLY valid JSON, no markdown, no backticks:
-{
-  "title": "...",
-  "servings": 4,
-  "totalTime": "20 min",
-  "ingredientsSent": [
-    { "name": "elbow macaroni", "qty": 0.5, "unit": "lb", "display": "1/2 lb elbow macaroni" }
-  ],
-  "ingredientsNeeded": ["kosher salt & ground pepper", "olive oil"],
-  "tools": ["medium saucepan", "large skillet"],
-  "steps": [
-    { "title": "Cook pasta", "body": "Full instruction text." }
-  ],
-  "nutrition": { "calories": 780, "protein": "46g", "carbs": "71g", "fat": "30g" }
-}
-Rules:
-- servings must be a NUMBER (integer)
-- ingredientsSent: ONLY items from "What We Send" that have a clear quantity and unit. qty must be a positive number.
-- ingredientsNeeded: items from "What You Need" AND any ingredient with no quantity, "to taste", or that is a pantry staple like salt, pepper, oil, butter, water
-- Do NOT put "to taste" items or unmeasured items in ingredientsSent
-- tools: simple string array
-- Each step needs a SHORT title (2-4 words) and body (full instruction)
-- Split compound paragraphs into individual steps`}
+Return ONLY valid JSON, no markdown:
+{"title":"...","servings":4,"totalTime":"20 min",
+"ingredientsSent":[{"name":"elbow macaroni","qty":0.5,"unit":"lb","display":"1/2 lb elbow macaroni"}],
+"ingredientsNeeded":["kosher salt","olive oil"],
+"tools":["medium saucepan"],
+"steps":[{"title":"Cook pasta","body":"Full instruction."}],
+"nutrition":{"calories":780,"protein":"46g","carbs":"71g","fat":"30g"}}
+Rules: servings=integer; ingredientsSent only items with clear qty+unit; ingredientsNeeded=pantry+unmeasured; no "to taste" in ingredientsSent; each step needs short title+body.`}
   ]}],"",2000);
   const clean=text.replace(/```json|```/g,"").trim();
   const parsed=JSON.parse(clean);
   if (!parsed.ingredients) parsed.ingredients=parsed.ingredientsSent||[];
-  // Post-process: move "to taste" / zero-qty items from ingredientsSent to ingredientsNeeded
   return cleanIngredients(parsed);
 }
 
 function cleanIngredients(parsed) {
-  const TO_TASTE=/to taste|as needed|as desired|to season|pinch of/i;
+  const TT=/to taste|as needed|as desired|to season|pinch of/i;
   const sent=[]; const extra=[];
   (parsed.ingredientsSent||parsed.ingredients||[]).forEach(ing=>{
-    if (!ing.qty || ing.qty<=0 || TO_TASTE.test(ing.display||"") || TO_TASTE.test(ing.name||"")) {
-      extra.push(ing.display||ing.name);
-    } else {
-      sent.push(ing);
-    }
+    if (!ing.qty||ing.qty<=0||TT.test(ing.display||"")||TT.test(ing.name||"")) { extra.push(ing.display||ing.name); }
+    else { sent.push(ing); }
   });
   const needed=Array.from(new Set([...(parsed.ingredientsNeeded||[]),...extra]));
-  return {...parsed, ingredientsSent:sent, ingredients:sent, ingredientsNeeded:needed};
+  return {...parsed,ingredientsSent:sent,ingredients:sent,ingredientsNeeded:needed};
 }
 
 function formatQty(qty,unit,name) {
-  const fractions=[[0.125,"\u215b"],[0.25,"\u00bc"],[0.333,"\u2153"],[0.5,"\u00bd"],[0.667,"\u2154"],[0.75,"\u00be"]];
+  const fracs=[[0.125,"\u215b"],[0.25,"\u00bc"],[0.333,"\u2153"],[0.5,"\u00bd"],[0.667,"\u2154"],[0.75,"\u00be"]];
   const whole=Math.floor(qty), frac=qty-whole;
   let q=whole>0?String(whole):"";
-  const match=fractions.find(([v])=>Math.abs(frac-v)<0.05);
-  if (match) q+=match[1]; else if (frac>0.05) q+=` ${frac.toFixed(1).replace(/\.?0+$/,"")}`;
+  const m=fracs.find(([v])=>Math.abs(frac-v)<0.05);
+  if (m) q+=m[1]; else if (frac>0.05) q+=` ${frac.toFixed(1).replace(/\.?0+$/,"")}`;
   return `${q.trim()} ${unit} ${name}`.trim();
 }
 
@@ -183,31 +150,22 @@ function scaleIngredients(recipe,n) {
 
 async function askScalerQuestion(recipe,n,question,history) {
   const scaled=scaleIngredients(recipe,n);
-  const system=`Cooking assistant for "${recipe.title}". Original: ${recipe.servings} servings. Scaled to: ${n} servings.
+  const system=`Cooking assistant for "${recipe.title}". Scaled to ${n} servings.
 INGREDIENTS: ${scaled.map(i=>`- ${i.display}`).join("\n")}
 STEPS: ${recipe.steps.map((s,i)=>`${i+1}. ${typeof s==="object"?s.title+": "+s.body:s}`).join("\n")}
-Answer concisely. Use scaled quantities.`;
+Answer concisely using scaled quantities.`;
   return callClaude([...history.map(h=>({role:h.role,content:h.content})),{role:"user",content:question}],system,600);
 }
 
 function buildShoppingList(schedule, recipes) {
-  const recipeMap={};
-  recipes.forEach(r=>recipeMap[r.id]=r);
-  const sentMap={};
-  const neededSet=new Set();
-  const toolsSet=new Set();
-  const TO_TASTE=/to taste|as needed|as desired|to season|pinch of/i;
-  const DAYS=["mon","tue","wed","thu","fri","sat","sun"];
-  DAYS.forEach(day=>{
+  const recipeMap={}; recipes.forEach(r=>recipeMap[r.id]=r);
+  const sentMap={}, neededSet=new Set(), toolsSet=new Set();
+  const TT=/to taste|as needed|as desired|to season|pinch of/i;
+  ["mon","tue","wed","thu","fri","sat","sun"].forEach(day=>{
     const rid=schedule[day]; if (!rid) return;
     const r=recipeMap[rid]; if (!r) return;
-    const src=r.ingredientsSent||r.ingredients||[];
-    src.forEach(ing=>{
-      // Route "to taste" / zero-qty to pantry staples
-      if (!ing.qty || ing.qty<=0 || TO_TASTE.test(ing.display||"") || TO_TASTE.test(ing.name||"")) {
-        neededSet.add(ing.display||ing.name);
-        return;
-      }
+    (r.ingredientsSent||r.ingredients||[]).forEach(ing=>{
+      if (!ing.qty||ing.qty<=0||TT.test(ing.display||"")||TT.test(ing.name||"")) { neededSet.add(ing.display||ing.name); return; }
       const key=`${ing.name.toLowerCase().trim()}|${(ing.unit||"").toLowerCase().trim()}`;
       if (sentMap[key]) { sentMap[key].qty+=ing.qty||0; sentMap[key].recipes.push(r.title); }
       else { sentMap[key]={name:ing.name,unit:ing.unit||"",qty:ing.qty||0,recipes:[r.title]}; }
@@ -215,8 +173,11 @@ function buildShoppingList(schedule, recipes) {
     (r.ingredientsNeeded||[]).forEach(n=>neededSet.add(n.trim()));
     (r.tools||[]).forEach(t=>toolsSet.add(t.trim()));
   });
-  const sent=Object.values(sentMap).map(item=>({...item,display:formatQty(item.qty,item.unit,item.name)}));
-  return { sent, needed:Array.from(neededSet).sort(), tools:Array.from(toolsSet).sort() };
+  return {
+    sent:Object.values(sentMap).map(item=>({...item,display:formatQty(item.qty,item.unit,item.name)})),
+    needed:Array.from(neededSet).sort(),
+    tools:Array.from(toolsSet).sort()
+  };
 }
 
 const CATEGORIES=[
@@ -231,19 +192,15 @@ const CATEGORIES=[
   {id:"other",   label:"Other",   emoji:"\ud83c\udf7d\ufe0f", keywords:[]},
 ];
 
-// Fuzzy duplicate detection — normalize title, check word overlap
 function fuzzyTitleMatch(a, b) {
-  const norm = s => s.toLowerCase().replace(/[^a-z0-9\s]/g,"").replace(/\s+/g," ").trim();
-  const words = s => new Set(norm(s).split(" ").filter(w=>w.length>2));
+  const norm=s=>s.toLowerCase().replace(/[^a-z0-9\s]/g,"").replace(/\s+/g," ").trim();
+  const words=s=>new Set(norm(s).split(" ").filter(w=>w.length>2));
   const wa=words(a), wb=words(b);
   if(wa.size===0||wb.size===0) return false;
   let overlap=0; wa.forEach(w=>{if(wb.has(w))overlap++;});
-  const score=overlap/Math.min(wa.size,wb.size);
-  return score>=0.6;
+  return (overlap/Math.min(wa.size,wb.size))>=0.6;
 }
-function findDuplicates(title, recipes) {
-  return recipes.filter(r=>fuzzyTitleMatch(r.title, title));
-}
+function findDuplicates(title,recipes) { return recipes.filter(r=>fuzzyTitleMatch(r.title,title)); }
 
 function detectCategory(title,saved) {
   if (saved&&saved!=="other") return saved;
@@ -290,7 +247,7 @@ function useChecklistVoice({active,ingredients,checked,onCheck,onGotAll,onHeard}
       if (START_PHRASES.some(p=>t.includes(p))){stopSpeaking();onGotAll();return;}
       if (WHATS_LEFT_PHRASES.some(p=>t.includes(p))){
         const unc=ingredients.filter((_,i)=>!checked[i]);
-        unc.length===0?speak("You've got everything! Say ready to cook."):speak("You still need: "+unc.map(i=>i.display||i.name).join(", ")+". Say got that one after each.");
+        unc.length===0?speak("You've got everything! Say ready to cook."):speak("You still need: "+unc.map(i=>i.display||i.name).join(", ")+".");
         return;
       }
       if (GOT_THAT_PHRASES.some(p=>t.includes(p))){
@@ -344,7 +301,7 @@ function ApiKeyScreen({onSaved}) {
       <div style={{background:C.card,borderRadius:16,padding:32,maxWidth:480,width:"100%",boxShadow:"0 4px 32px rgba(0,0,0,0.08)"}}>
         <div style={{fontSize:28,fontWeight:700,color:C.sage,marginBottom:6}}>Dinnerly</div>
         <div style={{fontSize:14,color:C.muted,marginBottom:4}}>Recipe Catalog</div>
-        <div style={{fontSize:11,color:C.muted,marginBottom:24,letterSpacing:1}}>v2.6</div>
+        <div style={{fontSize:11,color:C.muted,marginBottom:24,letterSpacing:1}}>v2.7</div>
         <div style={{fontSize:15,fontWeight:700,marginBottom:8}}>Enter your Anthropic API key</div>
         <div style={{fontSize:13,color:C.muted,marginBottom:16,lineHeight:1.5}}>Get one free at <strong>console.anthropic.com</strong> &gt; API Keys. Stored only on this device.</div>
         <div style={{position:"relative",marginBottom:8}}>
@@ -358,6 +315,41 @@ function ApiKeyScreen({onSaved}) {
         </div>
         {err&&<div style={{color:"#b03020",fontSize:13,marginBottom:12,padding:"10px 12px",background:"#fff0ee",borderRadius:6}}>{err}</div>}
         <button onClick={save} disabled={testing||!key.trim()} style={{...btnP,width:"100%",padding:14,fontSize:16,opacity:(testing||!key.trim())?0.5:1}}>{testing?"Testing...":"Save & Continue"}</button>
+      </div>
+    </div>
+  );
+}
+
+function SecretScreen({onSaved}) {
+  const [secret,setSecret]=useState(""); const [err,setErr]=useState(""); const [testing,setTesting]=useState(false); const [show,setShow]=useState(false);
+  const save=async()=>{
+    const s=secret.trim();
+    if(!s){setErr("Please enter the shared password");return;}
+    setTesting(true);setErr("");
+    try {
+      const getRes=await fetch("/api/recipes");
+      if(!getRes.ok){setErr("Could not reach server");setTesting(false);return;}
+      const currentRecipes=await getRes.json().catch(()=>[]);
+      const testRes=await fetch("/api/recipes",{method:"POST",headers:{"Content-Type":"application/json","X-Dinnerly-Secret":s},body:JSON.stringify(currentRecipes||[])});
+      if(testRes.status===401){setErr("Wrong password");setTesting(false);return;}
+      if(!testRes.ok){setErr("Server error: "+testRes.status);setTesting(false);return;}
+      onSaved(s);
+    } catch(e){setErr("Could not connect: "+e.message);}
+    setTesting(false);
+  };
+  return (
+    <div style={{...base,minHeight:"100vh",background:C.paper,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+      <div style={{background:C.card,borderRadius:16,padding:32,maxWidth:480,width:"100%",boxShadow:"0 4px 32px rgba(0,0,0,0.08)"}}>
+        <div style={{fontSize:28,fontWeight:700,color:C.plum,marginBottom:6}}>Dinnerly</div>
+        <div style={{fontSize:14,color:C.muted,marginBottom:24}}>Enter the shared catalog password</div>
+        <div style={{fontSize:13,color:C.muted,marginBottom:16,lineHeight:1.5}}>This is the <strong>DINNERLY_SECRET</strong> you set in Cloudflare. Same for all devices.</div>
+        <div style={{position:"relative",marginBottom:16}}>
+          <input type={show?"text":"password"} value={secret} onChange={e=>setSecret(e.target.value)} onKeyDown={e=>e.key==="Enter"&&save()}
+            placeholder="your shared password" style={{...inp,fontSize:15,paddingRight:48}} autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck="false"/>
+          <button onClick={()=>setShow(v=>!v)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:18,color:C.muted}}>{show?"\ud83d\ude48":"\ud83d\udc41"}</button>
+        </div>
+        {err&&<div style={{color:"#b03020",fontSize:13,marginBottom:12,padding:"10px 12px",background:"#fff0ee",borderRadius:6}}>{err}</div>}
+        <button onClick={save} disabled={testing||!secret.trim()} style={{...btnP,background:C.plum,width:"100%",padding:14,fontSize:16,opacity:(testing||!secret.trim())?0.5:1}}>{testing?"Checking...":"Connect"}</button>
       </div>
     </div>
   );
@@ -390,21 +382,15 @@ function HomeScreen({recipes,schedule,onCatalog,onPlanner,onAdd,onSettings}) {
         </div>
       </div>
       <div style={{maxWidth:600,margin:"0 auto",padding:"40px 24px",display:"flex",flexDirection:"column",gap:20}}>
-        <button onClick={onCatalog} className="cat-tile"
-          style={{...base,background:C.card,border:`1.5px solid ${C.border}`,borderRadius:20,padding:"32px 28px",cursor:"pointer",
-            textAlign:"left",boxShadow:"0 2px 16px rgba(0,0,0,0.07)",transition:"all 0.18s",display:"flex",alignItems:"center",gap:24,width:"100%"}}>
+        <button onClick={onCatalog} className="cat-tile" style={{...base,background:C.card,border:`1.5px solid ${C.border}`,borderRadius:20,padding:"32px 28px",cursor:"pointer",textAlign:"left",boxShadow:"0 2px 16px rgba(0,0,0,0.07)",transition:"all 0.18s",display:"flex",alignItems:"center",gap:24,width:"100%"}}>
           <span style={{fontSize:64,lineHeight:1,flexShrink:0}}>{"\ud83d\udcd6"}</span>
           <div>
             <div style={{fontSize:22,fontWeight:700,color:C.ink,marginBottom:6}}>Recipe Catalog</div>
             <div style={{fontSize:14,color:C.muted,lineHeight:1.5}}>Browse and cook from your collection</div>
-            <div style={{fontSize:13,color:C.sageDark,background:C.sageLight,borderRadius:20,padding:"4px 14px",fontWeight:600,display:"inline-block",marginTop:10}}>
-              {recipes.length} recipe{recipes.length!==1?"s":""}
-            </div>
+            <div style={{fontSize:13,color:C.sageDark,background:C.sageLight,borderRadius:20,padding:"4px 14px",fontWeight:600,display:"inline-block",marginTop:10}}>{recipes.length} recipe{recipes.length!==1?"s":""}</div>
           </div>
         </button>
-        <button onClick={onPlanner} className="cat-tile"
-          style={{...base,background:C.card,border:`1.5px solid ${C.border}`,borderRadius:20,padding:"32px 28px",cursor:"pointer",
-            textAlign:"left",boxShadow:"0 2px 16px rgba(0,0,0,0.07)",transition:"all 0.18s",display:"flex",alignItems:"center",gap:24,width:"100%"}}>
+        <button onClick={onPlanner} className="cat-tile" style={{...base,background:C.card,border:`1.5px solid ${C.border}`,borderRadius:20,padding:"32px 28px",cursor:"pointer",textAlign:"left",boxShadow:"0 2px 16px rgba(0,0,0,0.07)",transition:"all 0.18s",display:"flex",alignItems:"center",gap:24,width:"100%"}}>
           <span style={{fontSize:64,lineHeight:1,flexShrink:0}}>{"\ud83d\udcc5"}</span>
           <div>
             <div style={{fontSize:22,fontWeight:700,color:C.ink,marginBottom:6}}>Weekly Planner</div>
@@ -420,8 +406,7 @@ function HomeScreen({recipes,schedule,onCatalog,onPlanner,onAdd,onSettings}) {
 }
 
 function CategoryScreen({recipes,onSelectCategory,onBack,onAdd}) {
-  const counts={};
-  recipes.forEach(r=>{const c=detectCategory(r.title,r.category);counts[c]=(counts[c]||0)+1;});
+  const counts={}; recipes.forEach(r=>{const c=detectCategory(r.title,r.category);counts[c]=(counts[c]||0)+1;});
   const active=CATEGORIES.filter(c=>counts[c.id]>0);
   return (
     <div style={{...base,minHeight:"100vh",background:C.paper}}>
@@ -437,14 +422,10 @@ function CategoryScreen({recipes,onSelectCategory,onBack,onAdd}) {
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:16}}>
             {active.map(cat=>(
               <button key={cat.id} className="cat-tile" onClick={()=>onSelectCategory(cat.id)}
-                style={{...base,background:C.card,border:`1.5px solid ${C.border}`,borderRadius:16,padding:"28px 16px",cursor:"pointer",
-                  textAlign:"center",boxShadow:"0 2px 12px rgba(0,0,0,0.06)",transition:"all 0.18s",
-                  display:"flex",flexDirection:"column",alignItems:"center",gap:10}}>
+                style={{...base,background:C.card,border:`1.5px solid ${C.border}`,borderRadius:16,padding:"28px 16px",cursor:"pointer",textAlign:"center",boxShadow:"0 2px 12px rgba(0,0,0,0.06)",transition:"all 0.18s",display:"flex",flexDirection:"column",alignItems:"center",gap:10}}>
                 <span style={{fontSize:52,lineHeight:1}}>{cat.emoji}</span>
                 <div style={{fontSize:18,fontWeight:700,color:C.ink}}>{cat.label}</div>
-                <div style={{fontSize:12,color:C.sageDark,background:C.sageLight,borderRadius:20,padding:"4px 14px",fontWeight:600}}>
-                  {counts[cat.id]} recipe{counts[cat.id]!==1?"s":""}
-                </div>
+                <div style={{fontSize:12,color:C.sageDark,background:C.sageLight,borderRadius:20,padding:"4px 14px",fontWeight:600}}>{counts[cat.id]} recipe{counts[cat.id]!==1?"s":""}</div>
               </button>
             ))}
           </div>
@@ -461,10 +442,7 @@ function RecipeListScreen({recipes,categoryId,onBack,onSelect,onDelete,onAdd}) {
     <div style={{...base,minHeight:"100vh",background:C.paper}}>
       <div style={{background:C.sage,padding:"18px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <button onClick={onBack} style={{...btnG,color:"rgba(255,255,255,0.8)",borderColor:"rgba(255,255,255,0.3)",padding:"7px 14px",fontSize:13}}>&larr; Back</button>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:22}}>{cat.emoji}</span>
-          <span style={{color:"#fff",fontWeight:700,fontSize:18}}>{cat.label}</span>
-        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:22}}>{cat.emoji}</span><span style={{color:"#fff",fontWeight:700,fontSize:18}}>{cat.label}</span></div>
         <button onClick={onAdd} style={{...btnP,background:C.orange,padding:"8px 14px",fontSize:13}}>+ Scan</button>
       </div>
       <div style={{maxWidth:900,margin:"0 auto",padding:"28px 24px"}}>
@@ -483,9 +461,7 @@ function RecipeListScreen({recipes,categoryId,onBack,onSelect,onDelete,onAdd}) {
 function LibraryCard({recipe,onSelect,onDelete}) {
   return (
     <div style={{background:C.card,borderRadius:12,overflow:"hidden",border:`1.5px solid ${C.border}`,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
-      {recipe.frontImage
-        ?<img src={recipe.frontImage} alt={recipe.title} style={{width:"100%",height:160,objectFit:"contain",background:"#1a1a1a"}}/>
-        :<div style={{height:8,background:C.sage}}/>}
+      {recipe.frontImage?<img src={recipe.frontImage} alt={recipe.title} style={{width:"100%",height:160,objectFit:"contain",background:"#1a1a1a"}}/>:<div style={{height:8,background:C.sage}}/>}
       <div style={{padding:"16px 16px 14px"}}>
         <div style={{fontSize:16,fontWeight:700,color:C.ink,marginBottom:6,lineHeight:1.3}}>{recipe.title}</div>
         <div style={{display:"flex",gap:12,fontSize:12,color:C.muted,marginBottom:14,flexWrap:"wrap"}}>
@@ -502,93 +478,30 @@ function LibraryCard({recipe,onSelect,onDelete}) {
   );
 }
 
-// -- Live Viewfinder for front card capture
-function ViewfinderCapture({onCapture, onCancel}) {
-  const videoRef=useRef(null);
-  const canvasRef=useRef(null);
-  const streamRef=useRef(null);
-  const [ready,setReady]=useState(false);
-  const [err,setErr]=useState(null);
-
-  // Zone: food photo occupies center 80% width, middle 55% height of frame
-  const ZONE={x:0.18, y:0.15, w:0.64, h:0.66};
-
-  useEffect(()=>{
-    let active=true;
-    navigator.mediaDevices?.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}}}).then(stream=>{
-      streamRef.current=stream;
-      if(videoRef.current&&active){videoRef.current.srcObject=stream;}
-      setReady(true);
-    }).catch(e=>setErr("Camera unavailable: "+e.message));
-    return()=>{
-      active=false;
-      streamRef.current?.getTracks().forEach(t=>t.stop());
-    };
-  },[]);
-
-  const capture=()=>{
-    const vid=videoRef.current; if(!vid) return;
-    const vw=vid.videoWidth, vh=vid.videoHeight;
-    // Compute zone in video pixels
-    const zx=Math.round(vw*ZONE.x), zy=Math.round(vh*ZONE.y);
-    const zw=Math.round(vw*ZONE.w), zh=Math.round(vh*ZONE.h);
-    // Output 16:9 at 1200x675
-    const OUT_W=1200, OUT_H=675;
-    const c=document.createElement("canvas"); c.width=OUT_W; c.height=OUT_H;
-    c.getContext("2d").drawImage(vid,zx,zy,zw,zh,0,0,OUT_W,OUT_H);
-    const croppedDataUrl=c.toDataURL("image/jpeg",0.82);
-    // Also get full-frame base64 for Claude vision (needs full card context)
-    const full=document.createElement("canvas"); full.width=vw; full.height=vh;
-    full.getContext("2d").drawImage(vid,0,0,vw,vh);
-    const fullDataUrl=full.toDataURL("image/jpeg",0.82);
-    streamRef.current?.getTracks().forEach(t=>t.stop());
-    onCapture({croppedDataUrl, fullDataUrl, base64:fullDataUrl.split(",")[1], type:"image/jpeg"});
-  };
-
-  if(err) return (
-    <div style={{position:"fixed",inset:0,zIndex:400,background:"#000",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
-      <div style={{color:"#fff",fontSize:16,marginBottom:20,textAlign:"center"}}>{err}</div>
-      <button onClick={onCancel} style={{...btnP,padding:"12px 28px"}}>Use Regular Camera</button>
-    </div>
-  );
-
+function CategoryPicker({current,onSelect,onClose}) {
   return (
-    <div style={{position:"fixed",inset:0,zIndex:400,background:"#000",display:"flex",flexDirection:"column"}}>
-      <div style={{position:"relative",flex:1,overflow:"hidden"}}>
-        <video ref={videoRef} autoPlay playsInline muted style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
-        {/* Dim overlay outside zone */}
-        <svg style={{position:"absolute",inset:0,width:"100%",height:"100%",pointerEvents:"none"}} viewBox="0 0 100 100" preserveAspectRatio="none">
-          <defs>
-            <mask id="zone-mask">
-              <rect width="100" height="100" fill="white"/>
-              <rect x={ZONE.x*100} y={ZONE.y*100} width={ZONE.w*100} height={ZONE.h*100} fill="black"/>
-            </mask>
-          </defs>
-          <rect width="100" height="100" fill="rgba(0,0,0,0.55)" mask="url(#zone-mask)"/>
-          {/* Zone border */}
-          <rect x={ZONE.x*100} y={ZONE.y*100} width={ZONE.w*100} height={ZONE.h*100}
-            fill="none" stroke={C.sage} strokeWidth="0.4"/>
-        </svg>
-        {/* Label */}
-        <div style={{position:"absolute",top:`${(ZONE.y-0.08)*100}%`,left:0,right:0,textAlign:"center",color:"rgba(255,255,255,0.9)",fontSize:13,fontWeight:600,letterSpacing:1,textShadow:"0 1px 4px rgba(0,0,0,0.8)"}}
-        >Align food photo inside the box</div>
-      </div>
-      <div style={{background:"rgba(0,0,0,0.85)",padding:"18px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <button onClick={onCancel} style={{...base,background:"rgba(255,255,255,0.12)",color:"#fff",border:"none",borderRadius:8,padding:"10px 18px",fontSize:14,cursor:"pointer"}}>Cancel</button>
-        <button onClick={capture} disabled={!ready}
-          style={{...btnP,background:ready?C.orange:"#555",padding:"14px 36px",fontSize:17,borderRadius:50,opacity:ready?1:0.5}}>
-          {ready?"Capture":"Starting camera..."}
-        </button>
-        <div style={{width:80}}/>
+    <div style={{position:"fixed",inset:0,zIndex:300,background:"rgba(10,10,10,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:400,overflow:"hidden",boxShadow:"0 16px 60px rgba(0,0,0,0.3)"}}>
+        <div style={{background:C.sage,padding:"16px 20px",color:"#fff",fontWeight:700,fontSize:17}}>Change Category</div>
+        <div style={{padding:"8px 0",maxHeight:"60vh",overflowY:"auto"}}>
+          {CATEGORIES.map(cat=>(
+            <div key={cat.id} onClick={()=>onSelect(cat.id)} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 20px",cursor:"pointer",background:cat.id===current?C.sageLight:"#fff",borderLeft:cat.id===current?`3px solid ${C.sage}`:"3px solid transparent",transition:"background 0.15s"}}>
+              <span style={{fontSize:24}}>{cat.emoji}</span>
+              <span style={{fontSize:16,fontWeight:cat.id===current?700:400,color:C.ink}}>{cat.label}</span>
+              {cat.id===current&&<span style={{marginLeft:"auto",color:C.sage,fontWeight:700}}>&checkmark;</span>}
+            </div>
+          ))}
+        </div>
+        <div style={{padding:"12px 20px",borderTop:`1px solid ${C.border}`}}>
+          <button onClick={onClose} style={{...btnG,width:"100%",padding:"10px"}}>Cancel</button>
+        </div>
       </div>
     </div>
   );
 }
 
-// -- Crop Modal (pinch/drag, 16:9 output) -- kept for reference, unused
-function CropModal({imageDataUrl, onConfirm, onRetake}) {
-  const canvasRef=useRef(null);
-  const containerRef=useRef(null);
+function CropModal({imageDataUrl,onConfirm,onRetake}) {
+  const canvasRef=useRef(null), containerRef=useRef(null);
   const st=useRef({scale:1,ox:0,oy:0,lastDist:0,lastX:0,lastY:0,dragging:false,img:null,cw:0,ch:0});
   const [ready,setReady]=useState(false);
 
@@ -597,55 +510,43 @@ function CropModal({imageDataUrl, onConfirm, onRetake}) {
     img.onload=()=>{
       st.current.img=img;
       const con=containerRef.current; if (!con) return;
-      const cw=con.offsetWidth;
-      const ch=Math.round(cw*(9/16));
+      const cw=con.offsetWidth, ch=Math.round(cw*(9/16));
       st.current.cw=cw; st.current.ch=ch;
       const fill=Math.max(cw/img.width,ch/img.height);
-      st.current.scale=fill;
-      st.current.ox=(cw-img.width*fill)/2;
-      st.current.oy=(ch-img.height*fill)/2;
+      st.current.scale=fill; st.current.ox=(cw-img.width*fill)/2; st.current.oy=(ch-img.height*fill)/2;
       draw(); setReady(true);
     };
     img.src=imageDataUrl;
   },[imageDataUrl]);
 
   const draw=()=>{
-    const s=st.current;
-    if (!s.img||!canvasRef.current) return;
-    const c=canvasRef.current;
-    c.width=s.cw; c.height=s.ch;
-    const ctx=c.getContext("2d");
-    ctx.clearRect(0,0,s.cw,s.ch);
+    const s=st.current; if (!s.img||!canvasRef.current) return;
+    const c=canvasRef.current; c.width=s.cw; c.height=s.ch;
+    const ctx=c.getContext("2d"); ctx.clearRect(0,0,s.cw,s.ch);
     ctx.drawImage(s.img,s.ox,s.oy,s.img.width*s.scale,s.img.height*s.scale);
-    ctx.strokeStyle="rgba(255,255,255,0.3)"; ctx.lineWidth=2;
-    ctx.strokeRect(1,1,s.cw-2,s.ch-2);
+    ctx.strokeStyle="rgba(255,255,255,0.3)"; ctx.lineWidth=2; ctx.strokeRect(1,1,s.cw-2,s.ch-2);
   };
 
-  const clamp=(sc,ox,oy,cw,ch,iw,ih)=>{
-    return {ox:Math.min(0,Math.max(cw-iw*sc,ox)),oy:Math.min(0,Math.max(ch-ih*sc,oy))};
-  };
+  const clamp=(sc,ox,oy,cw,ch,iw,ih)=>({ox:Math.min(0,Math.max(cw-iw*sc,ox)),oy:Math.min(0,Math.max(ch-ih*sc,oy))});
 
   const onTS=e=>{
-    e.preventDefault();
-    const t=e.touches; const s=st.current;
+    e.preventDefault(); const t=e.touches; const s=st.current;
     if(t.length===1){s.dragging=true;s.lastX=t[0].clientX;s.lastY=t[0].clientY;}
     else if(t.length===2){s.dragging=false;s.lastDist=Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);}
   };
   const onTM=e=>{
-    e.preventDefault();
-    const t=e.touches; const s=st.current;
+    e.preventDefault(); const t=e.touches; const s=st.current;
     if(t.length===1&&s.dragging){
-      const dx=t[0].clientX-s.lastX; const dy=t[0].clientY-s.lastY;
+      const dx=t[0].clientX-s.lastX, dy=t[0].clientY-s.lastY;
       s.lastX=t[0].clientX; s.lastY=t[0].clientY;
       const p=clamp(s.scale,s.ox+dx,s.oy+dy,s.cw,s.ch,s.img.width,s.img.height);
       s.ox=p.ox; s.oy=p.oy; draw();
     } else if(t.length===2){
       const dist=Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
       const factor=dist/s.lastDist; s.lastDist=dist;
-      const cx=(t[0].clientX+t[1].clientX)/2;
-      const cy=(t[0].clientY+t[1].clientY)/2;
+      const cx=(t[0].clientX+t[1].clientX)/2, cy=(t[0].clientY+t[1].clientY)/2;
       const rect=canvasRef.current.getBoundingClientRect();
-      const px=cx-rect.left; const py=cy-rect.top;
+      const px=cx-rect.left, py=cy-rect.top;
       const minSc=Math.max(s.cw/s.img.width,s.ch/s.img.height);
       const ns=Math.max(minSc,Math.min(s.scale*factor,8));
       const sr=ns/s.scale;
@@ -671,21 +572,16 @@ function CropModal({imageDataUrl, onConfirm, onRetake}) {
         <button onClick={confirm} style={{...btnP,background:C.sage,padding:"8px 18px",fontSize:14}}>Use Photo</button>
       </div>
       <div ref={containerRef} style={{flex:1,overflow:"hidden"}}>
-        <canvas ref={canvasRef} style={{display:"block",width:"100%",touchAction:"none"}}
-          onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE}/>
+        <canvas ref={canvasRef} style={{display:"block",width:"100%",touchAction:"none"}} onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE}/>
       </div>
-      {!ready&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
-        <div style={{color:"#fff",fontSize:16}}>Loading...</div>
-      </div>}
+      {!ready&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{color:"#fff",fontSize:16}}>Loading...</div></div>}
     </div>
   );
 }
 
-// -- Scan Screen (front camera -> crop -> back camera -> parse -> review)
 function ScanScreen({onBack,onSaved}) {
   const [stage,setStage]=useState("front");
   const [front,setFront]=useState(null);
-  const [back,setBack]=useState(null);
   const [recipe,setRecipe]=useState(null);
   const [error,setError]=useState(null);
   const frontInputRef=useRef();
@@ -697,13 +593,8 @@ function ScanScreen({onBack,onSaved}) {
     r.onerror=rej; r.readAsDataURL(file);
   });
 
-  useEffect(()=>{
-    if(stage==="front") setTimeout(()=>frontInputRef.current&&frontInputRef.current.click(),300);
-  },[stage]);
-
-  useEffect(()=>{
-    if(stage==="back") setTimeout(()=>backInputRef.current&&backInputRef.current.click(),300);
-  },[stage]);
+  useEffect(()=>{if(stage==="front")setTimeout(()=>frontInputRef.current&&frontInputRef.current.click(),300);},[stage]);
+  useEffect(()=>{if(stage==="back")setTimeout(()=>backInputRef.current&&backInputRef.current.click(),300);},[stage]);
 
   const handleFrontChosen=async file=>{
     const data=await readFile(file);
@@ -717,7 +608,7 @@ function ScanScreen({onBack,onSaved}) {
 
   const handleBackChosen=async file=>{
     const data=await readFile(file);
-    setBack(data); setStage("parsing");
+    setStage("parsing");
     try {
       const parsed=await parseRecipeCards(front.base64,front.type,data.base64,data.type);
       const displaySrc=front.croppedDataUrl||front.dataUrl;
@@ -730,11 +621,7 @@ function ScanScreen({onBack,onSaved}) {
     }
   };
 
-  if(stage==="crop"&&front) return (
-    <CropModal imageDataUrl={front.dataUrl}
-      onConfirm={handleCropConfirm}
-      onRetake={()=>{setFront(null);setStage("front");}}/>
-  );
+  if(stage==="crop"&&front) return <CropModal imageDataUrl={front.dataUrl} onConfirm={handleCropConfirm} onRetake={()=>{setFront(null);setStage("front");}}/>;
 
   if(stage==="parsing") return (
     <div style={{...base,minHeight:"100vh",background:C.paper}}>
@@ -766,151 +653,22 @@ function ScanScreen({onBack,onSaved}) {
         <div style={{fontSize:40,marginBottom:16}}>!</div>
         <div style={{fontSize:18,fontWeight:700,color:C.ink,marginBottom:8}}>Could not read the card</div>
         <div style={{color:C.muted,fontSize:14,marginBottom:24}}>{error}</div>
-        <button onClick={()=>{setFront(null);setBack(null);setError(null);setStage("front");}} style={{...btnP,padding:"12px 28px",fontSize:15}}>Start Over</button>
+        <button onClick={()=>{setFront(null);setRecipe(null);setError(null);setStage("front");}} style={{...btnP,padding:"12px 28px",fontSize:15}}>Start Over</button>
       </div>
     </div>
   );
 
-  // front or back waiting screens
   return (
     <div style={{...base,minHeight:"100vh",background:C.paper}}>
       <TopBar onBack={onBack} title="Scan Recipe Card"/>
-      <input ref={frontInputRef} type="file" accept="image/*" capture="environment" style={{display:"none"}}
-        onChange={e=>{if(e.target.files&&e.target.files[0])handleFrontChosen(e.target.files[0]);}}/>
-      <input ref={backInputRef} type="file" accept="image/*" capture="environment" style={{display:"none"}}
-        onChange={e=>{if(e.target.files&&e.target.files[0])handleBackChosen(e.target.files[0]);}}/>
+      <input ref={frontInputRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>{if(e.target.files&&e.target.files[0])handleFrontChosen(e.target.files[0]);}}/>
+      <input ref={backInputRef} type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>{if(e.target.files&&e.target.files[0])handleBackChosen(e.target.files[0]);}}/>
       <div style={{maxWidth:480,margin:"0 auto",padding:"60px 24px",textAlign:"center"}}>
         <div style={{fontSize:64,marginBottom:20}}>{stage==="back"?"\ud83d\udcc4":"\ud83d\udcf7"}</div>
-        <div style={{fontSize:22,fontWeight:700,color:C.ink,marginBottom:8}}>
-          {stage==="back"?"Now scan the back":"Opening camera..."}
-        </div>
-        <div style={{fontSize:14,color:C.muted,marginBottom:32}}>
-          {stage==="back"?"Point at the ingredients and steps side":"Point at the front of the Dinnerly card"}
-        </div>
+        <div style={{fontSize:22,fontWeight:700,color:C.ink,marginBottom:8}}>{stage==="back"?"Now scan the back":"Opening camera..."}</div>
+        <div style={{fontSize:14,color:C.muted,marginBottom:32}}>{stage==="back"?"Point at the ingredients and steps side":"Point at the front of the Dinnerly card"}</div>
         {stage==="front"&&<button onClick={()=>frontInputRef.current&&frontInputRef.current.click()} style={{...btnP,padding:"12px 28px",fontSize:16}}>Open Camera</button>}
         {stage==="back"&&<button onClick={()=>backInputRef.current&&backInputRef.current.click()} style={{...btnP,padding:"12px 28px",fontSize:16}}>Open Camera</button>}
-      </div>
-    </div>
-  );
-}
-
-  const handleBackChosen=async file=>{
-    const data=await readFile(file);
-    setBack(data); setStage("parsing");
-    try {
-      const parsed=await parseRecipeCards(front.base64,front.type,data.base64,data.type);
-      const displaySrc=front.croppedDataUrl||front.dataUrl;
-      const compressed=await compressImage(displaySrc,1200,0.82);
-      setRecipe({...parsed,id:Date.now(),addedAt:new Date().toISOString(),frontImage:compressed});
-      setStage("review");
-    } catch(e){
-      setError("Could not read the cards: "+e.message);
-      setStage("error");
-    }
-  };
-
-  if(stage==="parsing") return (
-    <div style={{...base,minHeight:"100vh",background:C.paper}}>
-      <TopBar onBack={onBack} title="Scan Recipe Card"/>
-      <div style={{textAlign:"center",padding:"60px 24px"}}>
-        {front&&front.croppedDataUrl&&<img src={front.croppedDataUrl} alt="front" style={{height:140,borderRadius:10,boxShadow:"0 2px 12px rgba(0,0,0,0.1)",display:"block",margin:"0 auto 24px"}}/>}
-        <div style={{fontSize:20,fontWeight:700,marginBottom:10}}>Reading both sides...</div>
-        <div style={{color:C.muted,fontSize:14}}>Extracting ingredients and steps.</div>
-        <div style={{marginTop:20,display:"flex",gap:8,justifyContent:"center"}}>
-          {[0,1,2].map(i=><div key={i} style={{width:10,height:10,borderRadius:"50%",background:C.sage,animation:`pulse 1.4s ${i*0.2}s infinite`}}/>)}
-        </div>
-      </div>
-    </div>
-  );
-
-  if(stage==="review"&&recipe) return (
-    <div style={{...base,minHeight:"100vh",background:C.paper}}>
-      <TopBar onBack={onBack} title="Scan Recipe Card"/>
-      <div style={{maxWidth:680,margin:"32px auto",padding:"0 24px"}}>
-        <ReviewForm recipe={recipe} onSave={r=>onSaved(r)} onBack={()=>setStage("front")}/>
-      </div>
-    </div>
-  );
-
-  if(stage==="error") return (
-    <div style={{...base,minHeight:"100vh",background:C.paper}}>
-      <TopBar onBack={onBack} title="Scan Recipe Card"/>
-      <div style={{maxWidth:480,margin:"60px auto",padding:"0 24px",textAlign:"center"}}>
-        <div style={{fontSize:40,marginBottom:16}}>!</div>
-        <div style={{fontSize:18,fontWeight:700,color:C.ink,marginBottom:8}}>Could not read the card</div>
-        <div style={{color:C.muted,fontSize:14,marginBottom:24}}>{error}</div>
-        <button onClick={()=>{setFront(null);setBack(null);setError(null);setStage("front");}} style={{...btnP,padding:"12px 28px",fontSize:15}}>Start Over</button>
-      </div>
-    </div>
-  );
-
-  // stage === "front" — show viewfinder
-  if(stage==="front") return (
-    <ViewfinderCapture onCapture={handleFrontCaptured} onCancel={onBack}/>
-  );
-
-  // stage === "back" — regular camera
-  return (
-    <div style={{...base,minHeight:"100vh",background:C.paper}}>
-      <TopBar onBack={()=>setStage("front")} title="Scan Recipe Card"/>
-      <input ref={backInputRef} type="file" accept="image/*" capture="environment" style={{display:"none"}}
-        onChange={e=>{if(e.target.files&&e.target.files[0])handleBackChosen(e.target.files[0]);}}/>
-      <div style={{maxWidth:480,margin:"0 auto",padding:"60px 24px",textAlign:"center"}}>
-        <div style={{fontSize:64,marginBottom:20}}>\ud83d\udcc4</div>
-        <div style={{fontSize:22,fontWeight:700,color:C.ink,marginBottom:8}}>Now scan the back</div>
-        <div style={{fontSize:14,color:C.muted,marginBottom:32}}>Point at the ingredients and steps side</div>
-        <button onClick={()=>backInputRef.current&&backInputRef.current.click()} style={{...btnP,padding:"12px 28px",fontSize:16}}>Open Camera</button>
-      </div>
-    </div>
-  );
-}
-
-function DuplicateModal({newRecipe, existing, onKeepExisting, onSaveNew, onReplace}) {
-  const fmt=r=>r.addedAt?new Date(r.addedAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"Unknown date";
-  const Card=({recipe,label,accent})=>(
-    <div style={{flex:1,minWidth:0,background:C.card,borderRadius:12,border:`2px solid ${accent}`,overflow:"hidden"}}>
-      <div style={{background:accent,padding:"8px 14px",fontSize:12,fontWeight:700,color:"#fff",letterSpacing:1,textTransform:"uppercase"}}>{label}</div>
-      {recipe.frontImage
-        ?<img src={recipe.frontImage} alt={recipe.title} style={{width:"100%",height:120,objectFit:"contain",background:"#1a1a1a",display:"block"}}/>
-        :<div style={{height:8,background:accent}}/>}
-      <div style={{padding:"12px 14px"}}>
-        <div style={{fontSize:14,fontWeight:700,color:C.ink,marginBottom:6,lineHeight:1.3}}>{recipe.title}</div>
-        <div style={{fontSize:12,color:C.muted,display:"flex",flexDirection:"column",gap:3}}>
-          <span>Scanned: {fmt(recipe)}</span>
-          <span>{recipe.steps?.length||0} steps &bull; Serves {recipe.servings}</span>
-          <span>{(recipe.ingredientsSent||recipe.ingredients||[]).length} ingredients</span>
-        </div>
-      </div>
-    </div>
-  );
-  return (
-    <div style={{position:"fixed",inset:0,zIndex:500,background:"rgba(10,10,10,0.8)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,animation:"fadeIn 0.2s ease"}}>
-      <div style={{background:C.paper,borderRadius:20,width:"100%",maxWidth:560,maxHeight:"94vh",overflowY:"auto",boxShadow:"0 24px 80px rgba(0,0,0,0.4)"}}>
-        <div style={{background:C.orange,padding:"18px 24px"}}>
-          <div style={{fontSize:18,fontWeight:700,color:"#fff",marginBottom:4}}>Possible Duplicate Found</div>
-          <div style={{fontSize:13,color:"rgba(255,255,255,0.85)"}}>This recipe looks similar to one already in your catalog.</div>
-        </div>
-        <div style={{padding:"20px 20px 8px"}}>
-          <div style={{display:"flex",gap:12,marginBottom:20}}>
-            <Card recipe={existing} label="Already saved" accent={C.sage}/>
-            <Card recipe={newRecipe} label="Just scanned" accent={C.orange}/>
-          </div>
-          <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            <button onClick={onKeepExisting} style={{...btnP,background:C.sage,width:"100%",padding:13,fontSize:15,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
-              <span style={{fontSize:20}}>✓</span>
-              <span>Keep existing — discard the new scan</span>
-            </button>
-            <button onClick={onReplace} style={{...btnP,background:C.orange,width:"100%",padding:13,fontSize:15,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
-              <span style={{fontSize:20}}>↑</span>
-              <span>Replace existing with new scan</span>
-            </button>
-            <button onClick={onSaveNew} style={{...btnG,width:"100%",padding:13,fontSize:15,textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
-              <span style={{fontSize:20}}>+</span>
-              <span>Save both — they are different recipes</span>
-            </button>
-          </div>
-        </div>
-        <div style={{padding:"12px 20px 20px",fontSize:12,color:C.muted,textAlign:"center"}}>Matched on title similarity</div>
       </div>
     </div>
   );
@@ -943,15 +701,11 @@ function ReviewForm({recipe:initial,onSave,onBack}) {
       </div>
       {r.ingredientsNeeded&&r.ingredientsNeeded.length>0&&<>
         <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>What You Need</div>
-        <div style={{marginBottom:16,display:"flex",flexWrap:"wrap",gap:8}}>
-          {r.ingredientsNeeded.map((n,i)=><span key={i} style={{background:C.sageLight,color:C.sageDark,borderRadius:20,padding:"4px 12px",fontSize:13}}>{n}</span>)}
-        </div>
+        <div style={{marginBottom:16,display:"flex",flexWrap:"wrap",gap:8}}>{r.ingredientsNeeded.map((n,i)=><span key={i} style={{background:C.sageLight,color:C.sageDark,borderRadius:20,padding:"4px 12px",fontSize:13}}>{n}</span>)}</div>
       </>}
       {r.tools&&r.tools.length>0&&<>
         <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>Tools</div>
-        <div style={{marginBottom:16,display:"flex",flexWrap:"wrap",gap:8}}>
-          {r.tools.map((t,i)=><span key={i} style={{background:"#F0EDE8",color:C.muted,borderRadius:20,padding:"4px 12px",fontSize:13}}>{t}</span>)}
-        </div>
+        <div style={{marginBottom:16,display:"flex",flexWrap:"wrap",gap:8}}>{r.tools.map((t,i)=><span key={i} style={{background:"#F0EDE8",color:C.muted,borderRadius:20,padding:"4px 12px",fontSize:13}}>{t}</span>)}</div>
       </>}
       <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginBottom:12,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>Steps ({r.steps.length})</div>
       {r.steps.map((step,i)=>{
@@ -969,6 +723,46 @@ function ReviewForm({recipe:initial,onSave,onBack}) {
       <div style={{display:"flex",gap:12,marginTop:28}}>
         <button onClick={()=>onSave(r)} style={{...btnP,flex:1,padding:13,fontSize:16}}>Save to Catalog</button>
         <button onClick={onBack} style={{...btnG,padding:"13px 20px"}}>&larr; Rescan</button>
+      </div>
+    </div>
+  );
+}
+
+function DuplicateModal({newRecipe,existing,onKeepExisting,onSaveNew,onReplace}) {
+  const fmt=r=>r.addedAt?new Date(r.addedAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"Unknown date";
+  const Card=({recipe,label,accent})=>(
+    <div style={{flex:1,minWidth:0,background:C.card,borderRadius:12,border:`2px solid ${accent}`,overflow:"hidden"}}>
+      <div style={{background:accent,padding:"8px 14px",fontSize:12,fontWeight:700,color:"#fff",letterSpacing:1,textTransform:"uppercase"}}>{label}</div>
+      {recipe.frontImage?<img src={recipe.frontImage} alt={recipe.title} style={{width:"100%",height:120,objectFit:"contain",background:"#1a1a1a",display:"block"}}/>:<div style={{height:8,background:accent}}/>}
+      <div style={{padding:"12px 14px"}}>
+        <div style={{fontSize:14,fontWeight:700,color:C.ink,marginBottom:6,lineHeight:1.3}}>{recipe.title}</div>
+        <div style={{fontSize:12,color:C.muted,display:"flex",flexDirection:"column",gap:3}}>
+          <span>Scanned: {fmt(recipe)}</span>
+          <span>{recipe.steps?.length||0} steps &bull; Serves {recipe.servings}</span>
+          <span>{(recipe.ingredientsSent||recipe.ingredients||[]).length} ingredients</span>
+        </div>
+      </div>
+    </div>
+  );
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:500,background:"rgba(10,10,10,0.8)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,animation:"fadeIn 0.2s ease"}}>
+      <div style={{background:C.paper,borderRadius:20,width:"100%",maxWidth:560,maxHeight:"94vh",overflowY:"auto",boxShadow:"0 24px 80px rgba(0,0,0,0.4)"}}>
+        <div style={{background:C.orange,padding:"18px 24px"}}>
+          <div style={{fontSize:18,fontWeight:700,color:"#fff",marginBottom:4}}>Possible Duplicate Found</div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,0.85)"}}>This recipe looks similar to one already in your catalog.</div>
+        </div>
+        <div style={{padding:"20px 20px 8px"}}>
+          <div style={{display:"flex",gap:12,marginBottom:20}}>
+            <Card recipe={existing} label="Already saved" accent={C.sage}/>
+            <Card recipe={newRecipe} label="Just scanned" accent={C.orange}/>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            <button onClick={onKeepExisting} style={{...btnP,background:C.sage,width:"100%",padding:13,fontSize:15,textAlign:"left",display:"flex",alignItems:"center",gap:12}}><span style={{fontSize:20}}>\u2713</span><span>Keep existing \u2014 discard the new scan</span></button>
+            <button onClick={onReplace} style={{...btnP,background:C.orange,width:"100%",padding:13,fontSize:15,textAlign:"left",display:"flex",alignItems:"center",gap:12}}><span style={{fontSize:20}}>\u2191</span><span>Replace existing with new scan</span></button>
+            <button onClick={onSaveNew} style={{...btnG,width:"100%",padding:13,fontSize:15,textAlign:"left",display:"flex",alignItems:"center",gap:12}}><span style={{fontSize:20}}>+</span><span>Save both \u2014 they are different recipes</span></button>
+          </div>
+        </div>
+        <div style={{padding:"12px 20px 20px",fontSize:12,color:C.muted,textAlign:"center"}}>Matched on title similarity</div>
       </div>
     </div>
   );
@@ -1012,9 +806,7 @@ function IngredientChecklist({ingredients,onDone}) {
             {listening&&<div style={{fontSize:12,color:C.muted,lineHeight:1.4}}>Say "what's left" or "got that one"</div>}
           </div>
           {listening&&lastHeard&&<div style={{fontSize:12,color:C.muted,marginBottom:12,padding:"8px 12px",background:C.sageLight,borderRadius:6}}>Heard: <strong style={{color:C.ink}}>"{lastHeard}"</strong></div>}
-          <button onClick={onDone} style={{...btnP,background:allDone?C.sage:C.orange,width:"100%",padding:15,fontSize:17,marginBottom:10}}>
-            {allDone?"All Set -- Start Cooking!":"Start Cooking"}
-          </button>
+          <button onClick={onDone} style={{...btnP,background:allDone?C.sage:C.orange,width:"100%",padding:15,fontSize:17,marginBottom:10}}>{allDone?"All Set \u2014 Start Cooking!":"Start Cooking"}</button>
           <div style={{fontSize:12,color:C.muted,textAlign:"center"}}>Or say "ready to start cooking"</div>
         </div>
       </div>
@@ -1022,32 +814,7 @@ function IngredientChecklist({ingredients,onDone}) {
   );
 }
 
-function CategoryPicker({current,onSelect,onClose}) {
-  return (
-    <div style={{position:"fixed",inset:0,zIndex:300,background:"rgba(10,10,10,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:400,overflow:"hidden",boxShadow:"0 16px 60px rgba(0,0,0,0.3)"}}>
-        <div style={{background:C.sage,padding:"16px 20px",color:"#fff",fontWeight:700,fontSize:17}}>Change Category</div>
-        <div style={{padding:"8px 0",maxHeight:"60vh",overflowY:"auto"}}>
-          {CATEGORIES.map(cat=>(
-            <div key={cat.id} onClick={()=>onSelect(cat.id)} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 20px",cursor:"pointer",background:cat.id===current?C.sageLight:"#fff",borderLeft:cat.id===current?`3px solid ${C.sage}`:"3px solid transparent",transition:"background 0.15s"}}>
-              <span style={{fontSize:24}}>{cat.emoji}</span>
-              <span style={{fontSize:16,fontWeight:cat.id===current?700:400,color:C.ink}}>{cat.label}</span>
-              {cat.id===current&&<span style={{marginLeft:"auto",color:C.sage,fontWeight:700}}>&checkmark;</span>}
-            </div>
-          ))}
-        </div>
-        <div style={{padding:"12px 20px",borderTop:`1px solid ${C.border}`}}>
-          <button onClick={onClose} style={{...btnG,width:"100%",padding:"10px"}}>Cancel</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const DAYS=[
-  {key:"mon",label:"Monday"},{key:"tue",label:"Tuesday"},{key:"wed",label:"Wednesday"},
-  {key:"thu",label:"Thursday"},{key:"fri",label:"Friday"},{key:"sat",label:"Saturday"},{key:"sun",label:"Sunday"},
-];
+const DAYS=[{key:"mon",label:"Monday"},{key:"tue",label:"Tuesday"},{key:"wed",label:"Wednesday"},{key:"thu",label:"Thursday"},{key:"fri",label:"Friday"},{key:"sat",label:"Saturday"},{key:"sun",label:"Sunday"}];
 
 function PlannerScreen({recipes,schedule,onUpdateSchedule,onBack,onViewRecipe,onPickDay}) {
   const [showShop,setShowShop]=useState(false);
@@ -1060,9 +827,7 @@ function PlannerScreen({recipes,schedule,onUpdateSchedule,onBack,onViewRecipe,on
       <div style={{background:C.plum,padding:"18px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <button onClick={onBack} style={{...btnD,padding:"7px 14px",fontSize:13}}>&larr; Back</button>
         <span style={{color:"#fff",fontWeight:700,fontSize:17}}>Weekly Planner</span>
-        <button onClick={()=>setShowShop(true)} style={{...base,background:assignedCount>0?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.08)",color:"#fff",border:"1.5px solid rgba(255,255,255,0.3)",borderRadius:8,padding:"7px 14px",fontSize:13,cursor:"pointer",fontWeight:600}}>
-          List
-        </button>
+        <button onClick={()=>setShowShop(true)} style={{...base,background:assignedCount>0?"rgba(255,255,255,0.2)":"rgba(255,255,255,0.08)",color:"#fff",border:"1.5px solid rgba(255,255,255,0.3)",borderRadius:8,padding:"7px 14px",fontSize:13,cursor:"pointer",fontWeight:600}}>List</button>
       </div>
       {assignedCount>0&&(
         <div style={{background:"rgba(91,62,140,0.08)",borderBottom:`1px solid rgba(91,62,140,0.15)`,padding:"12px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -1082,9 +847,7 @@ function PlannerScreen({recipes,schedule,onUpdateSchedule,onBack,onViewRecipe,on
                 </div>
                 {r?(
                   <div style={{flex:1,display:"flex",alignItems:"center",gap:12,padding:"12px 14px",minWidth:0,overflow:"hidden"}}>
-                    {r.frontImage
-                      ?<img src={r.frontImage} alt={r.title} style={{width:56,height:44,objectFit:"cover",borderRadius:8,background:"#eee",flexShrink:0}}/>
-                      :<div style={{width:56,height:44,borderRadius:8,background:C.sageLight,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>{cat.emoji}</div>}
+                    {r.frontImage?<img src={r.frontImage} alt={r.title} style={{width:56,height:44,objectFit:"cover",borderRadius:8,background:"#eee",flexShrink:0}}/>:<div style={{width:56,height:44,borderRadius:8,background:C.sageLight,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>{cat.emoji}</div>}
                     <div style={{flex:1,minWidth:0,overflow:"hidden"}}>
                       <div style={{fontSize:14,fontWeight:700,color:C.ink,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.title}</div>
                       <div style={{fontSize:12,color:C.muted,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{cat.emoji} {cat.label}{r.totalTime?` - ${r.totalTime}`:""}</div>
@@ -1097,8 +860,7 @@ function PlannerScreen({recipes,schedule,onUpdateSchedule,onBack,onViewRecipe,on
                   </div>
                 ):(
                   <div style={{flex:1,display:"flex",alignItems:"center",gap:10,padding:"16px 14px",cursor:"pointer",color:C.plum}} onClick={()=>onPickDay(key)}>
-                    <span style={{fontSize:22,opacity:0.5}}>+</span>
-                    <span style={{fontSize:14,fontWeight:600}}>Add a meal</span>
+                    <span style={{fontSize:22,opacity:0.5}}>+</span><span style={{fontSize:14,fontWeight:600}}>Add a meal</span>
                   </div>
                 )}
               </div>
@@ -1156,9 +918,7 @@ function ShoppingListScreen({recipes,schedule,onBack}) {
           const key=`sent-${item.name}-${item.unit}`; const done=!!checked[key];
           return (
             <div key={i} onClick={()=>toggle(key)} style={{display:"flex",alignItems:"center",gap:14,padding:"13px 4px",borderBottom:`1px solid ${C.border}`,cursor:"pointer"}}>
-              <div style={{width:30,height:30,borderRadius:8,flexShrink:0,border:done?"none":`2px solid ${C.border}`,background:done?C.sage:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.2s"}}>
-                {done&&<span style={{color:"#fff",fontSize:18,lineHeight:1}}>&checkmark;</span>}
-              </div>
+              <div style={{width:30,height:30,borderRadius:8,flexShrink:0,border:done?"none":`2px solid ${C.border}`,background:done?C.sage:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.2s"}}>{done&&<span style={{color:"#fff",fontSize:18,lineHeight:1}}>&checkmark;</span>}</div>
               <div style={{flex:1}}>
                 <span style={{fontSize:16,color:done?C.muted:C.ink,textDecoration:done?"line-through":"none"}}>{item.display}</span>
                 {item.recipes&&item.recipes.length>1&&<div style={{fontSize:11,color:C.muted,marginTop:2}}>Used in {item.recipes.length} recipes</div>}
@@ -1172,9 +932,7 @@ function ShoppingListScreen({recipes,schedule,onBack}) {
             const key=`needed-${item}`; const done=!!checked[key];
             return (
               <div key={i} onClick={()=>toggle(key)} style={{display:"flex",alignItems:"center",gap:14,padding:"13px 4px",borderBottom:`1px solid ${C.border}`,cursor:"pointer"}}>
-                <div style={{width:30,height:30,borderRadius:8,flexShrink:0,border:done?"none":`2px solid ${C.border}`,background:done?C.sage:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.2s"}}>
-                  {done&&<span style={{color:"#fff",fontSize:18,lineHeight:1}}>&checkmark;</span>}
-                </div>
+                <div style={{width:30,height:30,borderRadius:8,flexShrink:0,border:done?"none":`2px solid ${C.border}`,background:done?C.sage:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.2s"}}>{done&&<span style={{color:"#fff",fontSize:18,lineHeight:1}}>&checkmark;</span>}</div>
                 <span style={{fontSize:16,color:done?C.muted:C.ink,textDecoration:done?"line-through":"none"}}>{item}</span>
               </div>
             );
@@ -1182,9 +940,7 @@ function ShoppingListScreen({recipes,schedule,onBack}) {
         </>}
         {tools.length>0&&<>
           <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginTop:24,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>Tools ({tools.length})</div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:8,paddingBottom:16}}>
-            {tools.map((t,i)=><span key={i} style={{background:"#F0EDE8",color:C.muted,borderRadius:20,padding:"6px 14px",fontSize:13}}>{t}</span>)}
-          </div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8,paddingBottom:16}}>{tools.map((t,i)=><span key={i} style={{background:"#F0EDE8",color:C.muted,borderRadius:20,padding:"6px 14px",fontSize:13}}>{t}</span>)}</div>
         </>}
       </div>
     </div>
@@ -1229,13 +985,8 @@ function DetailScreen({recipe,onBack,onCook,onUpdatePhoto,onUpdateCategory,plann
         <span style={{fontSize:13,color:C.sageDark,fontWeight:600}}>{currentCat.label}</span>
         <button onClick={()=>setShowCatPicker(true)} style={{...base,marginLeft:4,background:"none",border:`1px solid ${C.sageMid}`,borderRadius:6,padding:"2px 10px",fontSize:12,color:C.sage,cursor:"pointer"}}>Change</button>
       </div>
-      <div style={{height:220,overflow:"hidden",position:"relative",background:"#1a1a1a",cursor:"pointer"}}
-        onMouseEnter={()=>setPhotoHover(true)} onMouseLeave={()=>setPhotoHover(false)} onClick={()=>photoInputRef.current.click()}>
-        {recipe.frontImage
-          ?<img src={recipe.frontImage} alt={recipe.title} style={{width:"100%",height:"100%",objectFit:"contain"}}/>
-          :<div style={{height:"100%",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:8}}>
-            <span style={{fontSize:40}}>{"\ud83d\udcf7"}</span><span style={{color:"rgba(255,255,255,0.5)",fontSize:14}}>Tap to add a photo</span>
-          </div>}
+      <div style={{height:220,overflow:"hidden",position:"relative",background:"#1a1a1a",cursor:"pointer"}} onMouseEnter={()=>setPhotoHover(true)} onMouseLeave={()=>setPhotoHover(false)} onClick={()=>photoInputRef.current.click()}>
+        {recipe.frontImage?<img src={recipe.frontImage} alt={recipe.title} style={{width:"100%",height:"100%",objectFit:"contain"}}/>:<div style={{height:"100%",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:8}}><span style={{fontSize:40}}>{"\ud83d\udcf7"}</span><span style={{color:"rgba(255,255,255,0.5)",fontSize:14}}>Tap to add a photo</span></div>}
         <div style={{position:"absolute",inset:0,background:"linear-gradient(to top,rgba(0,0,0,0.5) 0%,transparent 60%)"}}/>
         {recipe.totalTime&&<div style={{position:"absolute",bottom:16,left:24,color:"#fff",fontSize:11,opacity:0.8,letterSpacing:1,textTransform:"uppercase"}}>{recipe.totalTime}</div>}
         <div style={{position:"absolute",top:12,right:12,display:"flex",gap:8,opacity:photoHover?1:0,transition:"opacity 0.2s"}}>
@@ -1259,17 +1010,12 @@ function DetailScreen({recipe,onBack,onCook,onUpdatePhoto,onUpdateCategory,plann
                 <span style={{fontSize:13,color:C.muted}}>{ratio!==1?`${ratio.toFixed(1)}x`:"original"}</span>
               </div>
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                {[2,4,6,8,12,20].map(n=>(
-                  <button key={n} onClick={()=>handleScale(n)} style={{...base,border:`1.5px solid ${guestCount===n?C.sage:C.border}`,borderRadius:6,padding:"5px 12px",fontSize:13,cursor:"pointer",background:guestCount===n?C.sageLight:"#fff",color:guestCount===n?C.sageDark:C.ink,fontWeight:guestCount===n?700:400}}>{n}</button>
-                ))}
+                {[2,4,6,8,12,20].map(n=><button key={n} onClick={()=>handleScale(n)} style={{...base,border:`1.5px solid ${guestCount===n?C.sage:C.border}`,borderRadius:6,padding:"5px 12px",fontSize:13,cursor:"pointer",background:guestCount===n?C.sageLight:"#fff",color:guestCount===n?C.sageDark:C.ink,fontWeight:guestCount===n?700:400}}>{n}</button>)}
               </div>
             </div>
             <div style={{background:C.card,borderRadius:12,border:`1.5px solid ${C.border}`,overflow:"hidden"}}>
               <div style={{padding:"16px 20px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:`1px solid ${C.border}`}}>
-                <div>
-                  <span style={{fontWeight:700,fontSize:15}}>Ingredients</span>
-                  {ratio!==1&&!scaling&&<span style={{fontSize:11,color:C.sage,fontWeight:600,marginLeft:8}}>Scaled x{ratio.toFixed(1)}</span>}
-                </div>
+                <div><span style={{fontWeight:700,fontSize:15}}>Ingredients</span>{ratio!==1&&!scaling&&<span style={{fontSize:11,color:C.sage,fontWeight:600,marginLeft:8}}>Scaled x{ratio.toFixed(1)}</span>}</div>
                 <button onClick={()=>setShowChecklist(true)} style={{...btnP,padding:"6px 14px",fontSize:12}}>Gather List</button>
               </div>
               {scaledIng.map((ing,i)=>(
@@ -1279,11 +1025,7 @@ function DetailScreen({recipe,onBack,onCook,onUpdatePhoto,onUpdateCategory,plann
               ))}
               {(recipe.ingredientsNeeded||[]).length>0&&<>
                 <div style={{padding:"10px 20px 6px",fontSize:11,fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:C.muted,borderTop:`1px solid ${C.border}`,marginTop:4}}>You'll also need</div>
-                {(recipe.ingredientsNeeded||[]).map((n,i)=>(
-                  <div key={i} style={{display:"flex",gap:10,padding:"7px 20px",borderBottom:i<(recipe.ingredientsNeeded.length-1)?`1px solid ${C.border}`:"none",fontSize:13,color:C.muted}}>
-                    <span style={{flexShrink:0,marginTop:2}}>o</span><span>{n}</span>
-                  </div>
-                ))}
+                {(recipe.ingredientsNeeded||[]).map((n,i)=><div key={i} style={{display:"flex",gap:10,padding:"7px 20px",borderBottom:i<(recipe.ingredientsNeeded.length-1)?`1px solid ${C.border}`:"none",fontSize:13,color:C.muted}}><span style={{flexShrink:0,marginTop:2}}>o</span><span>{n}</span></div>)}
               </>}
             </div>
           </div>
@@ -1293,10 +1035,7 @@ function DetailScreen({recipe,onBack,onCook,onUpdatePhoto,onUpdateCategory,plann
               {recipe.steps.map((step,i)=>(
                 <div key={i} style={{display:"flex",gap:12,marginBottom:12,alignItems:"flex-start"}}>
                   <div style={{minWidth:24,height:24,borderRadius:"50%",background:"linear-gradient(135deg,#6B4FC8,#8B6DE0)",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,flexShrink:0,marginTop:1}}>{i+1}</div>
-                  <div>
-                    {typeof step==="object"&&step.title&&<div style={{fontSize:13,fontWeight:700,color:C.ink,marginBottom:2}}>{step.title}</div>}
-                    <div style={{fontSize:13,lineHeight:1.5,color:C.muted}}>{typeof step==="object"?step.body:step}</div>
-                  </div>
+                  <div>{typeof step==="object"&&step.title&&<div style={{fontSize:13,fontWeight:700,color:C.ink,marginBottom:2}}>{step.title}</div>}<div style={{fontSize:13,lineHeight:1.5,color:C.muted}}>{typeof step==="object"?step.body:step}</div></div>
                 </div>
               ))}
             </div>
@@ -1305,7 +1044,7 @@ function DetailScreen({recipe,onBack,onCook,onUpdatePhoto,onUpdateCategory,plann
               <div style={{fontSize:12,color:C.muted,marginBottom:14}}>e.g. "What do I need for {guestCount} people?"</div>
               {chat.length>0&&(
                 <div ref={chatRef} style={{maxHeight:240,overflowY:"auto",marginBottom:12,display:"flex",flexDirection:"column",gap:10}}>
-                  {chat.map((m,i)=>(<div key={i} style={{alignSelf:m.role==="user"?"flex-end":"flex-start",maxWidth:"85%",background:m.role==="user"?C.sage:C.sageLight,color:m.role==="user"?"#fff":C.ink,borderRadius:m.role==="user"?"12px 12px 4px 12px":"12px 12px 12px 4px",padding:"10px 14px",fontSize:13,lineHeight:1.5}}>{m.content}</div>))}
+                  {chat.map((m,i)=><div key={i} style={{alignSelf:m.role==="user"?"flex-end":"flex-start",maxWidth:"85%",background:m.role==="user"?C.sage:C.sageLight,color:m.role==="user"?"#fff":C.ink,borderRadius:m.role==="user"?"12px 12px 4px 12px":"12px 12px 12px 4px",padding:"10px 14px",fontSize:13,lineHeight:1.5}}>{m.content}</div>)}
                   {asking&&<div style={{alignSelf:"flex-start",background:C.sageLight,borderRadius:"12px 12px 12px 4px",padding:"10px 14px"}}><span style={{animation:"pulse 1s infinite",display:"inline-block"}}>...</span></div>}
                 </div>
               )}
@@ -1371,9 +1110,7 @@ function CookScreen({recipe,guestCount,scaledIngredients,onBack}) {
         <button onClick={()=>setVoiceOn(v=>!v)} style={{border:"none",borderRadius:"50%",width:62,height:62,fontSize:22,cursor:"pointer",transition:"all 0.2s",background:flash?C.sageMid:voiceOn?C.sage:"rgba(255,255,255,0.08)",transform:flash?"scale(1.15)":"scale(1)",boxShadow:voiceOn?`0 0 0 5px rgba(74,124,89,0.3)`:"none"}}>{"\ud83c\udf99"}</button>
         <button onClick={goNext} disabled={isLast} style={{...btnP,background:isLast?"rgba(255,255,255,0.08)":C.orange,color:isLast?"rgba(255,255,255,0.25)":"#fff",padding:"12px 26px",fontSize:15,cursor:isLast?"default":"pointer"}}>{isLast?"Done":"Next"}</button>
       </div>
-      {voiceOn&&<div style={{background:"rgba(74,124,89,0.15)",borderTop:"1px solid rgba(74,124,89,0.3)",padding:"9px 16px",textAlign:"center",fontSize:13,color:C.sageMid}}>
-        Say "next step", "ok what's next", or "continue"
-      </div>}
+      {voiceOn&&<div style={{background:"rgba(74,124,89,0.15)",borderTop:"1px solid rgba(74,124,89,0.3)",padding:"9px 16px",textAlign:"center",fontSize:13,color:C.sageMid}}>Say "next step", "ok what's next", or "continue"</div>}
       {isLast&&<div style={{position:"fixed",bottom:100,left:"50%",transform:"translateX(-50%)",background:C.sage,color:"#fff",padding:"11px 22px",borderRadius:50,fontSize:15,fontWeight:600,pointerEvents:"none",boxShadow:"0 4px 20px rgba(74,124,89,0.4)"}}>Enjoy your meal!</div>}
       {showIng&&(
         <div style={{position:"fixed",top:0,right:0,height:"100vh",width:280,background:"#1E1E1E",borderLeft:"1px solid rgba(255,255,255,0.07)",overflowY:"auto",padding:"20px 18px",zIndex:100,boxShadow:"-8px 0 32px rgba(0,0,0,0.5)"}}>
@@ -1396,77 +1133,22 @@ const SEED_RECIPE={
   id:1720000000000,addedAt:"2026-07-11T00:00:00.000Z",
   title:"Macaroni with Beef Bolognese Sauce & Shredded Cheese",
   servings:4,totalTime:"ca 20 min",frontImage:null,
-  ingredients:[
-    {name:"elbow macaroni",qty:0.5,unit:"lb",display:"1/2 lb elbow macaroni"},
-    {name:"grass-fed ground beef",qty:0.5,unit:"lb",display:"1/2 lb grass-fed ground beef"},
-    {name:"tomato sauce",qty:2,unit:"oz",display:"2 oz tomato sauce"},
-    {name:"cream cheese",qty:2,unit:"oz",display:"2 oz cream cheese"},
-    {name:"shredded cheddar jack blend",qty:2,unit:"oz",display:"2 oz shredded cheddar-jack blend"},
-  ],
-  ingredientsSent:[
-    {name:"elbow macaroni",qty:0.5,unit:"lb",display:"1/2 lb elbow macaroni"},
-    {name:"grass-fed ground beef",qty:0.5,unit:"lb",display:"1/2 lb grass-fed ground beef"},
-    {name:"tomato sauce",qty:2,unit:"oz",display:"2 oz tomato sauce"},
-    {name:"cream cheese",qty:2,unit:"oz",display:"2 oz cream cheese"},
-    {name:"shredded cheddar jack blend",qty:2,unit:"oz",display:"2 oz shredded cheddar-jack blend"},
-  ],
+  ingredients:[{name:"elbow macaroni",qty:0.5,unit:"lb",display:"1/2 lb elbow macaroni"},{name:"grass-fed ground beef",qty:0.5,unit:"lb",display:"1/2 lb grass-fed ground beef"},{name:"tomato sauce",qty:2,unit:"oz",display:"2 oz tomato sauce"},{name:"cream cheese",qty:2,unit:"oz",display:"2 oz cream cheese"},{name:"shredded cheddar jack blend",qty:2,unit:"oz",display:"2 oz shredded cheddar-jack blend"}],
+  ingredientsSent:[{name:"elbow macaroni",qty:0.5,unit:"lb",display:"1/2 lb elbow macaroni"},{name:"grass-fed ground beef",qty:0.5,unit:"lb",display:"1/2 lb grass-fed ground beef"},{name:"tomato sauce",qty:2,unit:"oz",display:"2 oz tomato sauce"},{name:"cream cheese",qty:2,unit:"oz",display:"2 oz cream cheese"},{name:"shredded cheddar jack blend",qty:2,unit:"oz",display:"2 oz shredded cheddar-jack blend"}],
   ingredientsNeeded:["olive oil","kosher salt & ground pepper","sugar"],
   tools:["medium saucepan","large skillet"],
-  steps:[
-    {title:"Cook pasta & beef",body:"Bring a medium saucepan of salted water to a boil. Add pasta, cook stirring until al dente, 8-9 minutes. Reserve 1 cup cooking water and drain. Meanwhile, heat 2 tbsp olive oil in a large skillet over medium-high heat. Add beef, cook breaking up until well browned, 5-7 minutes."},
-    {title:"Build sauce",body:"To skillet with beef add tomato sauce, broth concentrate, steak seasoning, and 1/4 tsp sugar. Bring to a simmer, reduce heat. Stir in cream cheese and half the shredded cheese until melted. Season with salt and pepper."},
-    {title:"Add pasta & serve",body:"Add pasta to skillet and stir until combined, thinning with pasta water if needed. Serve with remaining cheese on top. Enjoy!"},
-  ],
+  steps:[{title:"Cook pasta & beef",body:"Bring a medium saucepan of salted water to a boil. Add pasta, cook stirring until al dente, 8-9 minutes. Reserve 1 cup cooking water and drain. Meanwhile, heat 2 tbsp olive oil in a large skillet over medium-high heat. Add beef, cook breaking up until well browned, 5-7 minutes."},{title:"Build sauce",body:"To skillet with beef add tomato sauce, broth concentrate, steak seasoning, and 1/4 tsp sugar. Bring to a simmer, reduce heat. Stir in cream cheese and half the shredded cheese until melted. Season with salt and pepper."},{title:"Add pasta & serve",body:"Add pasta to skillet and stir until combined, thinning with pasta water if needed. Serve with remaining cheese on top. Enjoy!"}],
   nutrition:{calories:780,protein:"46g",carbs:"71g",fat:"30g"}
 };
 
 function seedIfEmpty() {
-  // Only seed if there is NO shared secret configured yet (true first-time setup on a fresh device)
-  // Once a secret exists, cloud is the source of truth -- don't inject local seed data
   try{
-    if(localStorage.getItem(SECRET_STORAGE)) return; // already set up, cloud is source of truth
-    const e=localStorage.getItem("dinnerly-recipes-v2");const a=e?JSON.parse(e):[];
-    if(a.length===0)localStorage.setItem("dinnerly-recipes-v2",JSON.stringify([SEED_RECIPE]));
+    if(localStorage.getItem(SECRET_STORAGE)) return;
+    const e=localStorage.getItem(STORAGE_KEY); const a=e?JSON.parse(e):[];
+    if(a.length===0)localStorage.setItem(STORAGE_KEY,JSON.stringify([SEED_RECIPE]));
   }catch(e){}
 }
 seedIfEmpty();
-
-function SecretScreen({onSaved}) {
-  const [secret,setSecret]=useState(""); const [err,setErr]=useState(""); const [testing,setTesting]=useState(false); const [show,setShow]=useState(false);
-  const save=async()=>{
-    const s=secret.trim();
-    if(!s){setErr("Please enter the shared password");return;}
-    setTesting(true);setErr("");
-    try {
-      // Validate secret safely: GET current recipes first, then re-POST same data back
-      // This avoids writing null/garbage to KV during the test
-      const getRes=await fetch("/api/recipes");
-      if(!getRes.ok){setErr("Could not reach server");setTesting(false);return;}
-      const currentRecipes=await getRes.json().catch(()=>[]);
-      const testRes=await fetch("/api/recipes",{method:"POST",headers:{"Content-Type":"application/json","X-Dinnerly-Secret":s},body:JSON.stringify(currentRecipes||[])});
-      if(testRes.status===401){setErr("Wrong password");setTesting(false);return;}
-      if(!testRes.ok){setErr("Server error: "+testRes.status);setTesting(false);return;}
-      onSaved(s);
-    } catch(e){setErr("Could not connect: "+e.message);}
-    setTesting(false);
-  };
-  return (
-    <div style={{...base,minHeight:"100vh",background:C.paper,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
-      <div style={{background:C.card,borderRadius:16,padding:32,maxWidth:480,width:"100%",boxShadow:"0 4px 32px rgba(0,0,0,0.08)"}}>
-        <div style={{fontSize:28,fontWeight:700,color:C.plum,marginBottom:6}}>Dinnerly</div>
-        <div style={{fontSize:14,color:C.muted,marginBottom:24}}>Enter the shared catalog password</div>
-        <div style={{fontSize:13,color:C.muted,marginBottom:16,lineHeight:1.5}}>This is the <strong>DINNERLY_SECRET</strong> you set in Cloudflare. Same for all devices.</div>
-        <div style={{position:"relative",marginBottom:16}}>
-          <input type={show?"text":"password"} value={secret} onChange={e=>setSecret(e.target.value)} onKeyDown={e=>e.key==="Enter"&&save()}
-            placeholder="your shared password" style={{...inp,fontSize:15,paddingRight:48}} autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck="false"/>
-          <button onClick={()=>setShow(v=>!v)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:18,color:C.muted}}>{show?"🙈":"👁"}</button>
-        </div>
-        {err&&<div style={{color:"#b03020",fontSize:13,marginBottom:12,padding:"10px 12px",background:"#fff0ee",borderRadius:6}}>{err}</div>}
-        <button onClick={save} disabled={testing||!secret.trim()} style={{...btnP,background:C.plum,width:"100%",padding:14,fontSize:16,opacity:(testing||!secret.trim())?0.5:1}}>{testing?"Checking...":"Connect"}</button>
-      </div>
-    </div>
-  );
-}
 
 function App() {
   const [hasKey,setHasKey]=useState(!!getApiKey());
@@ -1482,14 +1164,14 @@ function App() {
   const [loading,setLoading]=useState(true);
   const [saveStatus,setSaveStatus]=useState(null);
   const [migrationPending,setMigrationPending]=useState(false);
+  const [dupCheck,setDupCheck]=useState(null);
   const DAYS_MAP={mon:"Monday",tue:"Tuesday",wed:"Wednesday",thu:"Thursday",fri:"Friday",sat:"Saturday",sun:"Sunday"};
 
   useEffect(()=>{
     if(!hasKey||!hasSecret){setLoading(false);return;}
     setLoading(true);
     Promise.all([loadRecipes(),loadSchedule()]).then(([r,s])=>{
-      setRecipes(r||[]);
-      setSchedule(s||{});
+      setRecipes(r||[]); setSchedule(s||{});
       const localR=getLocalRecipes();
       if(localR.length>0&&(r||[]).length===0) setMigrationPending(true);
       setLoading(false);
@@ -1510,8 +1192,7 @@ function App() {
     if(plannerPickDay){
       const next={...schedule,[plannerPickDay]:recipeId};
       handleUpdateSchedule(next);
-      setPlannerPickDay(null);
-      setScreen("planner");
+      setPlannerPickDay(null); setScreen("planner");
     }
   };
 
@@ -1528,16 +1209,11 @@ function App() {
   useEffect(()=>{
     const onBack=e=>{
       e.preventDefault();
+      if(dupCheck){setDupCheck(null);return;}
       if(screen==="cook"){setScreen("detail");return;}
-      if(screen==="detail"){
-        if(plannerPickDay){setScreen("recipelist");return;}
-        setScreen(active?.fromPlanner?"planner":"recipelist");return;
-      }
+      if(screen==="detail"){if(plannerPickDay){setScreen("recipelist");return;}setScreen(active?.fromPlanner?"planner":"recipelist");return;}
       if(screen==="recipelist"){setScreen("catalog");return;}
-      if(screen==="catalog"){
-        if(plannerPickDay){setPlannerPickDay(null);setScreen("planner");return;}
-        setScreen("home");return;
-      }
+      if(screen==="catalog"){if(plannerPickDay){setPlannerPickDay(null);setScreen("planner");return;}setScreen("home");return;}
       if(screen==="planner"){setScreen("home");return;}
       if(screen==="scan"){setScreen(activeCategory?"recipelist":"catalog");return;}
       if(showSettings){setShowSettings(false);return;}
@@ -1547,32 +1223,23 @@ function App() {
     window.history.pushState(null,"",window.location.href);
     window.addEventListener("popstate",onBack);
     return()=>window.removeEventListener("popstate",onBack);
-  },[screen,showSettings,exitPrompt,activeCategory,active,plannerPickDay]);
+  },[screen,showSettings,exitPrompt,activeCategory,active,plannerPickDay,dupCheck]);
 
   useEffect(()=>{window.history.pushState(null,"",window.location.href);},[screen]);
-
-  const [dupCheck,setDupCheck]=useState(null); // {newRecipe, existing}
 
   const commitSave=async r=>{
     const next=[r,...recipes]; setRecipes(next); showSave("saving");
     try{await saveRecipes(next);showSave("saved");}catch{showSave("error");}
-    setDupCheck(null);
-    setScreen(activeCategory?"recipelist":"catalog");
+    setDupCheck(null); setScreen(activeCategory?"recipelist":"catalog");
   };
   const commitReplace=async(newR,oldId)=>{
     const next=[newR,...recipes.filter(r=>r.id!==oldId)]; setRecipes(next); showSave("saving");
     try{await saveRecipes(next);showSave("saved");}catch{showSave("error");}
-    setDupCheck(null);
-    setScreen(activeCategory?"recipelist":"catalog");
+    setDupCheck(null); setScreen(activeCategory?"recipelist":"catalog");
   };
-
   const handleSaved=async r=>{
-    const dups=findDuplicates(r.title, recipes);
-    if(dups.length>0){
-      setDupCheck({newRecipe:r, existing:dups[0]});
-      setScreen(activeCategory?"recipelist":"catalog"); // go back behind the modal
-      return;
-    }
+    const dups=findDuplicates(r.title,recipes);
+    if(dups.length>0){setDupCheck({newRecipe:r,existing:dups[0]});setScreen(activeCategory?"recipelist":"catalog");return;}
     await commitSave(r);
   };
   const handleDelete=async id=>{
@@ -1609,7 +1276,6 @@ function App() {
 
   if(!hasKey||showSettings) return <ApiKeyScreen onSaved={()=>{setHasKey(true);setShowSettings(false);}}/>;
   if(!hasSecret) return <SecretScreen onSaved={s=>{setDinnSecret(s);setHasSecret(true);}}/>;
-
   if(loading) return (
     <div style={{...base,minHeight:"100vh",background:C.paper,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16}}>
       <div style={{fontSize:32}}>&#127860;</div>
@@ -1623,49 +1289,22 @@ function App() {
     <DetailScreen recipe={active.recipe}
       onBack={()=>{if(plannerPickDay){setScreen("recipelist");}else{setScreen(active?.fromPlanner?"planner":"recipelist");}}}
       onUpdatePhoto={handleUpdatePhoto} onUpdateCategory={handleUpdateCategory}
-      plannerPickDay={plannerPickDay}
-      plannerDayLabel={plannerPickDay?DAYS_MAP[plannerPickDay]:null}
+      plannerPickDay={plannerPickDay} plannerDayLabel={plannerPickDay?DAYS_MAP[plannerPickDay]:null}
       onAddToPlanner={()=>handlePlannerPick(active.recipe.id)}
       onCook={(r,g,s)=>{setActive(p=>({...p,recipe:r,guestCount:g,scaledIngredients:s}));setScreen("cook");}}/>
   );
-  if(screen==="cook"&&active?.recipe) return (
-    <CookScreen recipe={active.recipe} guestCount={active.guestCount} scaledIngredients={active.scaledIngredients} onBack={()=>setScreen("detail")}/>
-  );
-  if(screen==="recipelist"&&activeCategory) return (
-    <>{pickBanner}
-      <RecipeListScreen recipes={recipes} categoryId={activeCategory}
-        onBack={()=>setScreen("catalog")}
-        onSelect={r=>goToRecipe(r,false)}
-        onDelete={handleDelete} onAdd={()=>setScreen("scan")}/>
-    </>
-  );
-  if(screen==="catalog") return (
-    <>{pickBanner}
-      <CategoryScreen recipes={recipes}
-        onBack={()=>{if(plannerPickDay){setPlannerPickDay(null);setScreen("planner");}else{setScreen("home");}}}
-        onSelectCategory={id=>{setActiveCategory(id);setScreen("recipelist");}}
-        onAdd={()=>setScreen("scan")}/>
-    </>
-  );
-  if(screen==="planner") return (
-    <PlannerScreen recipes={recipes} schedule={schedule}
-      onUpdateSchedule={handleUpdateSchedule}
-      onBack={()=>setScreen("home")}
-      onViewRecipe={r=>goToRecipe(r,true)}
-      onPickDay={day=>{setPlannerPickDay(day);setActiveCategory(null);setScreen("catalog");}}/>
-  );
+  if(screen==="cook"&&active?.recipe) return <CookScreen recipe={active.recipe} guestCount={active.guestCount} scaledIngredients={active.scaledIngredients} onBack={()=>setScreen("detail")}/>;
+  if(screen==="recipelist"&&activeCategory) return <>{pickBanner}<RecipeListScreen recipes={recipes} categoryId={activeCategory} onBack={()=>setScreen("catalog")} onSelect={r=>goToRecipe(r,false)} onDelete={handleDelete} onAdd={()=>setScreen("scan")}/></>;
+  if(screen==="catalog") return <>{pickBanner}<CategoryScreen recipes={recipes} onBack={()=>{if(plannerPickDay){setPlannerPickDay(null);setScreen("planner");}else{setScreen("home");}}} onSelectCategory={id=>{setActiveCategory(id);setScreen("recipelist");}} onAdd={()=>setScreen("scan")}/></>;
+  if(screen==="planner") return <PlannerScreen recipes={recipes} schedule={schedule} onUpdateSchedule={handleUpdateSchedule} onBack={()=>setScreen("home")} onViewRecipe={r=>goToRecipe(r,true)} onPickDay={day=>{setPlannerPickDay(day);setActiveCategory(null);setScreen("catalog");}}/>;
 
   return (
     <>
-      <HomeScreen recipes={recipes} schedule={schedule}
-        onCatalog={()=>setScreen("catalog")}
-        onPlanner={()=>setScreen("planner")}
-        onAdd={()=>{setActiveCategory(null);setScreen("scan");}}
-        onSettings={()=>setShowSettings(true)}/>
+      <HomeScreen recipes={recipes} schedule={schedule} onCatalog={()=>setScreen("catalog")} onPlanner={()=>setScreen("planner")} onAdd={()=>{setActiveCategory(null);setScreen("scan");}} onSettings={()=>setShowSettings(true)}/>
       {migrationPending&&(
         <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:C.card,borderRadius:16,padding:"20px 24px",boxShadow:"0 8px 40px rgba(0,0,0,0.2)",zIndex:999,maxWidth:400,width:"calc(100% - 48px)"}}>
           <div style={{fontSize:15,fontWeight:700,color:C.ink,marginBottom:6}}>Local recipes found</div>
-          <div style={{fontSize:13,color:C.muted,marginBottom:16}}>You have {getLocalRecipes().length} recipes stored locally on this device. Upload them to the cloud so all devices can access them.</div>
+          <div style={{fontSize:13,color:C.muted,marginBottom:16}}>You have {getLocalRecipes().length} recipes stored locally. Upload them to the cloud so all devices can access them.</div>
           <div style={{display:"flex",gap:10}}>
             <button onClick={handleMigrate} style={{...btnP,flex:1,padding:"10px",fontSize:14}}>Upload to Cloud</button>
             <button onClick={()=>setMigrationPending(false)} style={{...btnG,padding:"10px 16px",fontSize:14}}>Dismiss</button>
@@ -1674,13 +1313,7 @@ function App() {
       )}
       {exitPrompt&&<div style={{position:"fixed",bottom:40,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,0.8)",color:"#fff",padding:"12px 24px",borderRadius:50,fontSize:15,fontWeight:600,zIndex:999,whiteSpace:"nowrap"}}>Tap back again to exit</div>}
       {saveToast}
-      {dupCheck&&<DuplicateModal
-        newRecipe={dupCheck.newRecipe}
-        existing={dupCheck.existing}
-        onKeepExisting={()=>{setDupCheck(null);}}
-        onSaveNew={()=>commitSave(dupCheck.newRecipe)}
-        onReplace={()=>commitReplace(dupCheck.newRecipe,dupCheck.existing.id)}
-      />}
+      {dupCheck&&<DuplicateModal newRecipe={dupCheck.newRecipe} existing={dupCheck.existing} onKeepExisting={()=>setDupCheck(null)} onSaveNew={()=>commitSave(dupCheck.newRecipe)} onReplace={()=>commitReplace(dupCheck.newRecipe,dupCheck.existing.id)}/>}
     </>
   );
 }
