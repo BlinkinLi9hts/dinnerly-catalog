@@ -1055,26 +1055,37 @@ function PlannerScreen({recipes,schedule,onUpdateSchedule,onBack,onViewRecipe,on
   );
 }
 
-function AddItemRow({onAdd,placeholder}) {
-  const [open,setOpen]=useState(false);
-  const [val,setVal]=useState("");
-  const ref=useRef();
-  const commit=()=>{
-    const v=val.trim(); if(v){onAdd(v);} setVal(""); setOpen(false);
-  };
-  useEffect(()=>{if(open&&ref.current)ref.current.focus();},[open]);
-  if(!open) return (
-    <button onClick={()=>setOpen(true)} style={{...base,display:"flex",alignItems:"center",gap:8,padding:"11px 4px",background:"none",border:"none",color:C.sage,fontSize:14,cursor:"pointer",fontWeight:600}}>
-      <span style={{fontSize:20,lineHeight:1}}>+</span> Add item
-    </button>
-  );
-  return (
-    <div style={{display:"flex",gap:8,padding:"8px 0"}}>
-      <input ref={ref} value={val} onChange={e=>setVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")commit();if(e.key==="Escape"){setVal("");setOpen(false);}}} placeholder={placeholder} style={{...inp,flex:1,fontSize:15}}/>
-      <button onClick={commit} style={{...btnP,padding:"8px 16px",fontSize:14}}>✓</button>
-      <button onClick={()=>{setVal("");setOpen(false);}} style={{...btnG,padding:"8px 14px",fontSize:14}}>✕</button>
-    </div>
-  );
+const AISLES=[
+  {id:"meat",     label:"Meat & Seafood",   emoji:"\ud83e\udd69", keywords:["beef","chicken","pork","turkey","lamb","shrimp","salmon","fish","tilapia","cod","tuna","scallop","lobster","crab","halibut","mahi","catfish","trout","sea bass","sausage","chorizo","pancetta","prosciutto","bacon","ground","steak","brisket","sirloin","ribeye","chuck","rib","breast","thigh","drumstick","fillet","meatball"]},
+  {id:"dairy",    label:"Dairy & Eggs",     emoji:"\ud83e\udd5a", keywords:["cheese","cream","butter","milk","egg","yogurt","sour cream","cheddar","mozzarella","parmesan","ricotta","feta","brie","gouda","cheddar-jack","jack blend","heavy cream","half and half","cream cheese","cottage cheese"]},
+  {id:"produce",  label:"Produce",           emoji:"\ud83e\udd66", keywords:["tomato","onion","garlic","pepper","lettuce","spinach","kale","broccoli","cauliflower","carrot","celery","zucchini","squash","mushroom","potato","sweet potato","corn","avocado","lime","lemon","orange","apple","banana","berry","cucumber","radish","scallion","green onion","leek","shallot","jalape","serrano","herb","cilantro","parsley","basil","thyme","rosemary","dill","mint","ginger","bell pepper","arugula","cabbage","beet","asparagus","snap pea","edamame","guacamole"]},
+  {id:"pantry",   label:"Pantry & Canned",  emoji:"\ud83e\udd2b", keywords:["tomato sauce","pasta","rice","bean","lentil","chickpea","broth","stock","coconut milk","can","jar","olive oil","vegetable oil","vinegar","soy sauce","hot sauce","worcestershire","honey","maple","jam","pickle","pickle","dill pickle","macaroni","noodle","ramen","gnocchi","tortilla","taco","chip","cracker","soup","sauce","gravy","salsa","pesto","hummus"]},
+  {id:"spices",   label:"Spices & Seasonings",emoji:"\ud83e\uddc2", keywords:["spice","seasoning","blend","bbq","cumin","paprika","chili","cayenne","oregano","cinnamon","turmeric","coriander","garlic powder","onion powder","granulated garlic","granulated onion","black pepper","white pepper","red pepper","salt","sugar","brown sugar","flour","starch","baking","mustard","ketchup","mayo","ranch","Italian","Cajun","curry","garam","za'atar","sumac","harissa"]},
+  {id:"bread",    label:"Bread & Dry Goods", emoji:"\ud83c\udf5e", keywords:["bread","bun","roll","biscuit","pita","naan","wrap","breadcrumb","panko","biscuit mix","flour","cornmeal","oat","cereal","crouton","stuffing"]},
+  {id:"other",    label:"Other",             emoji:"\ud83d\uded2", keywords:[]},
+];
+
+function classifyAisle(text) {
+  const t=(text||'').toLowerCase();
+  for (const aisle of AISLES) {
+    if (aisle.id==='other') continue;
+    if (aisle.keywords.some(k=>t.includes(k))) return aisle.id;
+  }
+  return 'other';
+}
+
+function groupByAisle(items,keyFn,textFn) {
+  const groups={};
+  AISLES.forEach(a=>{groups[a.id]=[];});
+  items.forEach(item=>{
+    const aisle=classifyAisle(textFn(item));
+    groups[aisle].push(item);
+  });
+  // Sort within each aisle alphabetically
+  AISLES.forEach(a=>{
+    groups[a.id].sort((x,y)=>textFn(x).localeCompare(textFn(y)));
+  });
+  return groups;
 }
 
 function ShoppingListScreen({recipes,schedule,onBack}) {
@@ -1082,56 +1093,72 @@ function ShoppingListScreen({recipes,schedule,onBack}) {
   const [manual,setManual]=useState(()=>loadShopManual());
   const [checked,setChecked]=useState(()=>loadShopChecked());
   const [delMode,setDelMode]=useState(false);
+  const [collapsed,setCollapsed]=useState({});
 
   const updManual=m=>{setManual(m);saveShopManual(m);};
-  const addManualSent=text=>{const next={...manual,sent:[...manual.sent,{text,id:Date.now()}]};updManual(next);};
-  const addManualNeeded=text=>{const next={...manual,needed:[...manual.needed,{text,id:Date.now()}]};updManual(next);};
-  const delManualSent=id=>updManual({...manual,sent:manual.sent.filter(x=>x.id!==id)});
-  const delManualNeeded=id=>updManual({...manual,needed:manual.needed.filter(x=>x.id!==id)});
+  const addManualItem=text=>{
+    const next={...manual,sent:[...manual.sent,{text,id:Date.now()}]};updManual(next);
+  };
+  const delManualItem=id=>updManual({...manual,sent:manual.sent.filter(x=>x.id!==id)});
 
   const toggle=key=>{setChecked(prev=>{const next={...prev,[key]:!prev[key]};saveShopChecked(next);return next;});};
   const clearAll=()=>{saveShopChecked({});setChecked({});};
+  const toggleCollapse=id=>setCollapsed(p=>({...p,[id]:!p[id]}));
 
-  const allSent=[...sent,...manual.sent.map(x=>({display:x.text,_manualId:x.id}))];
-  const allNeeded=[...needed,...manual.needed.map(x=>({display:x.text,_manualId:x.id}))];
-  const totalItems=allSent.length+allNeeded.length;
+  // Merge all shoppable items (sent + manual) into one pool for aisle grouping
+  const allItems=[
+    ...sent.map(item=>({...item,_key:`sent-${item.name}-${item.unit}`,_text:item.display,_manual:false})),
+    ...manual.sent.map(x=>({display:x.text,_manualId:x.id,_key:`manual-sent-${x.id}`,_text:x.text,_manual:true})),
+  ];
+
+  // Pantry / needed items also get aisle-grouped
+  const allNeeded=[
+    ...needed.map(n=>({display:n,_key:`needed-${n}`,_text:n,_manual:false})),
+    ...manual.needed.map(x=>({display:x.text,_manualId:x.id,_key:`manual-needed-${x.id}`,_text:x.text,_manual:true})),
+  ];
+
+  const aisleGroups=useMemo(()=>groupByAisle(allItems,'_key',i=>i._text),[sent,manual.sent]);
+  const pantryGroups=useMemo(()=>groupByAisle(allNeeded,'_key',i=>i._text),[needed,manual.needed]);
+
+  const totalItems=allItems.length+allNeeded.length;
   const checkedCount=Object.values(checked).filter(Boolean).length;
   const assignedDays=DAYS.filter(d=>schedule[d.key]);
 
-  const SentRow=({item,i})=>{
-    const key=item._manualId?`manual-sent-${item._manualId}`:`sent-${item.name}-${item.unit}`;
-    const done=!!checked[key];
+  const ItemRow=({item,onDel})=>{
+    const done=!!checked[item._key];
     return (
-      <div style={{display:"flex",alignItems:"center",gap:14,padding:"13px 4px",borderBottom:`1px solid ${C.border}`}}>
-        {delMode&&item._manualId
-          ?<button onClick={()=>delManualSent(item._manualId)} style={{width:30,height:30,borderRadius:8,flexShrink:0,background:"#fee2e2",border:"none",color:"#b03020",fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>×</button>
-          :<div onClick={()=>toggle(key)} style={{width:30,height:30,borderRadius:8,flexShrink:0,border:done?"none":`2px solid ${C.border}`,background:done?C.sage:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.2s",cursor:"pointer"}}>{done&&<span style={{color:"#fff",fontSize:18,lineHeight:1}}>&checkmark;</span>}</div>
+      <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:`1px solid ${C.border}`,background:done?"#F8FAF8":C.card}}>
+        {delMode&&item._manual
+          ?<button onClick={()=>onDel(item._manualId)} style={{width:28,height:28,borderRadius:7,flexShrink:0,background:"#fee2e2",border:"none",color:"#b03020",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>×</button>
+          :<div onClick={()=>toggle(item._key)} style={{width:28,height:28,borderRadius:7,flexShrink:0,border:done?"none":`2px solid ${C.border}`,background:done?C.sage:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.18s",cursor:"pointer"}}>{done&&<span style={{color:"#fff",fontSize:16,lineHeight:1}}>&checkmark;</span>}</div>
         }
-        <div style={{flex:1}} onClick={()=>!delMode&&toggle(key)}>
-          <span style={{fontSize:16,color:done&&!delMode?C.muted:C.ink,textDecoration:done&&!delMode?"line-through":"none"}}>{item.display}</span>
+        <div style={{flex:1,cursor:delMode?"default":"pointer"}} onClick={()=>!delMode&&toggle(item._key)}>
+          <div style={{fontSize:16,color:done&&!delMode?C.muted:C.ink,textDecoration:done&&!delMode?"line-through":"none"}}>{item.display}</div>
           {item.recipes&&item.recipes.length>1&&<div style={{fontSize:11,color:C.muted,marginTop:2}}>Used in {item.recipes.length} recipes</div>}
-          {item._manualId&&<span style={{fontSize:11,color:C.plum,marginLeft:6,background:"rgba(91,62,140,0.1)",borderRadius:10,padding:"1px 7px"}}>custom</span>}
+          {item._manual&&<span style={{fontSize:10,color:C.plum,background:"rgba(91,62,140,0.1)",borderRadius:8,padding:"1px 6px",marginLeft:6}}>custom</span>}
         </div>
       </div>
     );
   };
 
-  const NeededRow=({item,i})=>{
-    const isStr=typeof item==="string";
-    const text=isStr?item:item.display;
-    const manualId=isStr?null:item._manualId;
-    const key=manualId?`manual-needed-${manualId}`:`needed-${text}`;
-    const done=!!checked[key];
+  const AisleSection=({aisle,items,onDel,addRow})=>{
+    if(items.length===0&&!addRow) return null;
+    const doneCount=items.filter(i=>!!checked[i._key]).length;
+    const allDone=items.length>0&&doneCount===items.length;
+    const isCollapsed=collapsed[aisle.id];
     return (
-      <div style={{display:"flex",alignItems:"center",gap:14,padding:"13px 4px",borderBottom:`1px solid ${C.border}`}}>
-        {delMode&&manualId
-          ?<button onClick={()=>delManualNeeded(manualId)} style={{width:30,height:30,borderRadius:8,flexShrink:0,background:"#fee2e2",border:"none",color:"#b03020",fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>×</button>
-          :<div onClick={()=>toggle(key)} style={{width:30,height:30,borderRadius:8,flexShrink:0,border:done?"none":`2px solid ${C.border}`,background:done?C.sage:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.2s",cursor:"pointer"}}>{done&&<span style={{color:"#fff",fontSize:18,lineHeight:1}}>&checkmark;</span>}</div>
-        }
-        <div style={{flex:1}} onClick={()=>!delMode&&toggle(key)}>
-          <span style={{fontSize:16,color:done&&!delMode?C.muted:C.ink,textDecoration:done&&!delMode?"line-through":"none"}}>{text}</span>
-          {manualId&&<span style={{fontSize:11,color:C.plum,marginLeft:6,background:"rgba(91,62,140,0.1)",borderRadius:10,padding:"1px 7px"}}>custom</span>}
+      <div style={{marginBottom:8,borderRadius:14,overflow:"hidden",border:`1.5px solid ${allDone?C.sageMid:C.border}`,boxShadow:"0 1px 4px rgba(0,0,0,0.04)"}}>
+        <div onClick={()=>items.length>0&&toggleCollapse(aisle.id)}
+          style={{display:"flex",alignItems:"center",gap:10,padding:"13px 16px",background:allDone?C.sageLight:"#FAFAFA",cursor:items.length>0?"pointer":"default",userSelect:"none"}}>
+          <span style={{fontSize:22,lineHeight:1}}>{aisle.emoji}</span>
+          <span style={{fontWeight:700,fontSize:15,color:allDone?C.sageDark:C.ink,flex:1}}>{aisle.label}</span>
+          {items.length>0&&<span style={{fontSize:12,color:allDone?C.sage:C.muted,fontWeight:600}}>{doneCount}/{items.length}</span>}
+          {items.length>0&&<span style={{fontSize:14,color:C.muted,marginLeft:4}}>{isCollapsed?"\u25b6":"\u25bc"}</span>}
         </div>
+        {!isCollapsed&&<>
+          {items.map(item=><ItemRow key={item._key} item={item} onDel={onDel}/>)}
+          {addRow&&<div style={{padding:"4px 16px 8px",background:C.card}}>{addRow}</div>}
+        </>}
       </div>
     );
   };
@@ -1158,7 +1185,7 @@ function ShoppingListScreen({recipes,schedule,onBack}) {
         <div style={{padding:"12px 20px 0"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
             <span style={{fontSize:13,color:C.muted}}>{checkedCount} of {totalItems} checked</span>
-            {checkedCount===totalItems&&totalItems>0&&<span style={{fontSize:13,color:C.sage,fontWeight:700}}>All done!</span>}
+            {checkedCount===totalItems&&totalItems>0&&<span style={{fontSize:13,color:C.sage,fontWeight:700}}>All done! \ud83c\udf89</span>}
           </div>
           <div style={{height:5,background:C.border,borderRadius:3}}>
             <div style={{height:"100%",width:`${totalItems>0?(checkedCount/totalItems)*100:0}%`,background:C.sage,borderRadius:3,transition:"width 0.3s"}}/>
@@ -1166,23 +1193,51 @@ function ShoppingListScreen({recipes,schedule,onBack}) {
         </div>
       )}
       <div style={{maxWidth:700,margin:"0 auto",padding:"16px"}}>
-        <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>Ingredients to Buy ({allSent.length})</div>
-        {allSent.map((item,i)=><SentRow key={item._manualId||`${item.name}-${item.unit}`} item={item} i={i}/>)}
-        <AddItemRow onAdd={addManualSent} placeholder="e.g. 2 lbs ground beef"/>
+        {totalItems===0&&(
+          <div style={{textAlign:"center",padding:"48px 0",color:C.muted}}>
+            <div style={{fontSize:48,marginBottom:12}}>{"\ud83d\uded2"}</div>
+            <div style={{fontSize:16,fontWeight:700,color:C.ink,marginBottom:6}}>Your list is empty</div>
+            <div style={{fontSize:13}}>Plan meals in the Weekly Planner or add items below.</div>
+          </div>
+        )}
 
-        <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginTop:24,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>Pantry Staples ({allNeeded.length})</div>
-        {allNeeded.map((item,i)=><NeededRow key={typeof item==="string"?item:item._manualId||item.display} item={item} i={i}/>)}
-        <AddItemRow onAdd={addManualNeeded} placeholder="e.g. olive oil"/>
+        {/* Ingredients to buy — grouped by aisle */}
+        {allItems.length>0&&<div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginBottom:10,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>Ingredients to Buy</div>}
+        {AISLES.map(aisle=>{
+          const items=aisleGroups[aisle.id]||[];
+          const isLast=aisle.id==='other';
+          return <AisleSection key={aisle.id} aisle={aisle} items={items}
+            onDel={delManualItem}
+            addRow={isLast?<AddItemRow onAdd={addManualItem} placeholder="Add any item..."/>:null}
+          />;
+        })}
+        {/* If no items at all, show add row under a generic section */}
+        {allItems.length===0&&(
+          <div style={{marginBottom:8,borderRadius:14,overflow:"hidden",border:`1.5px solid ${C.border}`}}>
+            <div style={{padding:"12px 16px",background:"#FAFAFA",display:"flex",alignItems:"center",gap:10}}>
+              <span style={{fontSize:22}}>{"\ud83d\uded2"}</span>
+              <span style={{fontWeight:700,fontSize:15,color:C.ink}}>Add items</span>
+            </div>
+            <div style={{padding:"4px 16px 8px",background:C.card}}>
+              <AddItemRow onAdd={addManualItem} placeholder="e.g. 2 lbs ground beef"/>
+            </div>
+          </div>
+        )}
+
+        {/* Pantry staples */}
+        {allNeeded.length>0&&<>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginTop:20,marginBottom:10,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>Pantry Staples</div>
+          {AISLES.map(aisle=>{
+            const items=pantryGroups[aisle.id]||[];
+            if(items.length===0) return null;
+            return <AisleSection key={aisle.id} aisle={aisle} items={items} onDel={id=>updManual({...manual,needed:manual.needed.filter(x=>x.id!==id)})}/>;
+          })}
+        </>}
 
         {tools.length>0&&<>
-          <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginTop:24,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>Tools ({tools.length})</div>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginTop:20,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>Tools</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:8,paddingBottom:16}}>{tools.map((t,i)=><span key={i} style={{background:"#F0EDE8",color:C.muted,borderRadius:20,padding:"6px 14px",fontSize:13}}>{t}</span>)}</div>
         </>}
-        {totalItems===0&&<div style={{textAlign:"center",padding:"48px 0",color:C.muted}}>
-          <div style={{fontSize:48,marginBottom:12}}>{"\ud83d\uded2"}</div>
-          <div style={{fontSize:16,fontWeight:700,color:C.ink,marginBottom:6}}>Your list is empty</div>
-          <div style={{fontSize:13}}>Add items above, or plan meals in the Weekly Planner.</div>
-        </div>}
       </div>
     </div>
   );
