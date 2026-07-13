@@ -1150,7 +1150,7 @@ function ShoppingListScreen({recipes,schedule,onBack}) {
       <div onClick={e=>e.stopPropagation()} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:`1px solid ${C.border}`,background:done?"#F8FAF8":C.card}}>
         {delMode&&item._manual
           ?<button onClick={()=>onDel(item._manualId)} style={{width:28,height:28,borderRadius:7,flexShrink:0,background:"#fee2e2",border:"none",color:"#b03020",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>×</button>
-          :<div onClick={e=>{e.stopPropagation();toggle(item._key);}} style={{width:28,height:28,borderRadius:7,flexShrink:0,border:done?"none":`2px solid ${C.border}`,background:done?C.sage:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.18s",cursor:"pointer"}}>{done&&<span style={{color:"#fff",fontSize:16,lineHeight:1}}>&checkmark;</span>}</div>
+          :<div onClick={e=>{e.stopPropagation();toggle(item._key);}} style={{width:28,height:28,borderRadius:7,flexShrink:0,border:done?"none":`2px solid ${C.border}`,background:done?C.sage:"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.18s",cursor:"pointer"}}>{done&&<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><polyline points="2,7 5.5,11 12,3" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>}</div>
         }
         <div style={{flex:1,cursor:delMode?"default":"pointer"}} onClick={e=>{e.stopPropagation();if(!delMode)toggle(item._key);}}>
           <div style={{fontSize:16,color:done&&!delMode?C.muted:C.ink,textDecoration:done&&!delMode?"line-through":"none"}}>{item.display}</div>
