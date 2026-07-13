@@ -406,17 +406,34 @@ function HomeScreen({recipes,schedule,onCatalog,onPlanner,onAdd,onSettings}) {
 }
 
 function CategoryScreen({recipes,onSelectCategory,onBack,onAdd}) {
+  const [query,setQuery]=useState("");
   const counts={}; recipes.forEach(r=>{const c=detectCategory(r.title,r.category);counts[c]=(counts[c]||0)+1;});
-  const active=CATEGORIES.filter(c=>counts[c.id]>0);
+  const allActive=CATEGORIES.filter(c=>counts[c.id]>0);
+  const q=query.trim().toLowerCase();
+  const active=q?allActive.filter(c=>c.label.toLowerCase().includes(q)||recipes.some(r=>detectCategory(r.title,r.category)===c.id&&r.title.toLowerCase().includes(q))):allActive;
   return (
     <div style={{...base,minHeight:"100vh",background:C.paper}}>
       <TopBar onBack={onBack} title="Recipe Catalog" right={<button onClick={onAdd} style={{...btnP,background:C.orange,padding:"8px 14px",fontSize:13}}>+ Scan</button>}/>
-      <div style={{maxWidth:900,margin:"0 auto",padding:"32px 24px"}}>
+      <div style={{padding:"16px 24px 0",maxWidth:900,margin:"0 auto"}}>
+        <div style={{position:"relative"}}>
+          <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:16,color:C.muted,pointerEvents:"none"}}>{"\ud83d\udd0d"}</span>
+          <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search categories or recipes..." autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck="false"
+            style={{...inp,paddingLeft:38,paddingRight:query?38:12,fontSize:15,borderRadius:12,boxShadow:"0 1px 4px rgba(0,0,0,0.06)"}}/>
+          {query&&<button onClick={()=>setQuery("")} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",fontSize:18,color:C.muted,cursor:"pointer",lineHeight:1}}>&times;</button>}
+        </div>
+      </div>
+      <div style={{maxWidth:900,margin:"0 auto",padding:"20px 24px"}}>
         {recipes.length===0?(
           <div style={{textAlign:"center",padding:"80px 0",color:C.muted}}>
             <div style={{fontSize:52,marginBottom:16}}>{"\ud83c\udf7d\ufe0f"}</div>
             <div style={{fontSize:20,fontWeight:700,color:C.ink,marginBottom:8}}>Your catalog is empty</div>
             <div style={{fontSize:15}}>Tap Scan to add your first Dinnerly recipe.</div>
+          </div>
+        ):active.length===0?(
+          <div style={{textAlign:"center",padding:"60px 0",color:C.muted}}>
+            <div style={{fontSize:36,marginBottom:12}}>{"\ud83d\udd0d"}</div>
+            <div style={{fontSize:16,fontWeight:700,color:C.ink,marginBottom:6}}>No matches</div>
+            <div style={{fontSize:14}}>Try a different search term.</div>
           </div>
         ):(
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:16}}>
@@ -452,6 +469,9 @@ function RecipeListScreen({recipes,categoryId,onBack,onSelect,onDelete,onAdd}) {
     return Object.entries(g).sort(([a],[b])=>a.localeCompare(b));
   },[filtered]);
 
+  const [query,setQuery]=useState("");
+  const q=query.trim().toLowerCase();
+  const searchResults=q?filtered.filter(r=>r.title.toLowerCase().includes(q)):null;
   const letters=groups.map(([l])=>l);
   const scrollRef=useRef(null);
   const sectionRefs=useRef({});
@@ -500,10 +520,31 @@ function RecipeListScreen({recipes,categoryId,onBack,onSelect,onDelete,onAdd}) {
         <button onClick={onAdd} style={{...btnP,background:C.orange,padding:"8px 14px",fontSize:13}}>+ Scan</button>
       </div>
 
+      <div style={{padding:"12px 16px 0"}}>
+        <div style={{position:"relative",maxWidth:900,margin:"0 auto"}}>
+          <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:15,color:C.muted,pointerEvents:"none"}}>{"\ud83d\udd0d"}</span>
+          <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search recipes..." autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck="false"
+            style={{...inp,paddingLeft:36,paddingRight:query?36:12,fontSize:14,borderRadius:10}}/>
+          {query&&<button onClick={()=>setQuery("")} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",fontSize:18,color:C.muted,cursor:"pointer",lineHeight:1}}>&times;</button>}
+        </div>
+      </div>
       <div style={{flex:1,display:"flex",overflow:"hidden",position:"relative"}}>
-        <div ref={scrollRef} style={{flex:1,overflowY:"auto",padding:"16px 16px 32px",WebkitOverflowScrolling:"touch"}}>
+        <div ref={scrollRef} style={{flex:1,overflowY:"auto",padding:"12px 16px 32px",WebkitOverflowScrolling:"touch"}}>
           <div style={{maxWidth:900,margin:"0 auto"}}>
-            {groups.map(([letter,recs])=>(
+            {searchResults!==null?(
+              searchResults.length===0?(
+                <div style={{textAlign:"center",padding:"60px 0",color:C.muted}}>
+                  <div style={{fontSize:32,marginBottom:12}}>{"\ud83d\udd0d"}</div>
+                  <div style={{fontSize:15,fontWeight:700,color:C.ink,marginBottom:6}}>No matches</div>
+                  <div style={{fontSize:13}}>Try a different search term.</div>
+                </div>
+              ):(
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:16}}>
+                  {searchResults.map(r=><LibraryCard key={r.id} recipe={r} onSelect={()=>onSelect(r)} onDelete={()=>onDelete(r.id)}/>)}
+                </div>
+              )
+            ):null}
+            {searchResults===null&&groups.map(([letter,recs])=>(
               <div key={letter} ref={el=>sectionRefs.current[letter]=el} style={{marginBottom:24}}>
                 <div style={{
                   fontSize:13,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",
@@ -521,10 +562,11 @@ function RecipeListScreen({recipes,categoryId,onBack,onSelect,onDelete,onAdd}) {
                 </div>
               </div>
             ))}
+            }
           </div>
         </div>
 
-        {letters.length>=5&&(
+        {searchResults===null&&letters.length>=5&&(
           <div
             ref={alphaRef}
             onTouchStart={handleAlphaTouch}
