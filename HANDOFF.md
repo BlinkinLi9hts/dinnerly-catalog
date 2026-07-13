@@ -11,7 +11,7 @@ A personal recipe catalog app for Brian's physical Dinnerly recipe card collecti
 **Live URL:** https://dinnerly-catalog.pages.dev
 **Repo:** https://github.com/BlinkinLi9hts/dinnerly-catalog
 **Local file:** C:\Projects\dinnerly-catalog\index.html
-**Current version:** v2.7 (pending — rewrite in progress via Cowork)
+**Current version:** v2.7 (live — clean rewrite, all features verified)
 
 ---
 
@@ -210,7 +210,7 @@ C = { ink:"#1C1C1E", paper:"#F5F2ED", card:"#FFFFFF", sage:"#4A7C59",
 | 5 | Voice checklist "got that one" / "what's left" — needs re-test on tablet after rewrite | 🔧 Pending |
 | 6 | Seed recipe (Macaroni Bolognese id:1720000000000) still in code | ⏳ Remove once real cards scanned |
 | 7 | "Heard:" debug display still in voice checklist | ⏳ Remove once voice confirmed working |
-| 8 | File corrupted by incremental edits in v2.5/2.6 — full rewrite needed (in progress via Cowork) | 🔧 In progress |
+| 8 | v2.7 clean rewrite — full file written in one pass, deployed and verified | ✅ Done |
 
 ---
 
