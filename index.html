@@ -1165,23 +1165,25 @@ function ShoppingListScreen({recipes,schedule,onBack}) {
     );
   };
 
-  const AisleSection=({aisle,items,onDel,addRow})=>{
+  const AisleSection=({aisle,items,onDel,addRow,isPantry,collapsedState,onToggle})=>{
     if(items.length===0&&!addRow) return null;
     const doneCount=items.filter(i=>!!checked[i._key]).length;
     const allDone=items.length>0&&doneCount===items.length;
-    const isCollapsed=collapsed[aisle.id];
+    const isCollapsed=collapsedState[aisle.id];
+    const headerBg=isPantry?(allDone?"#dff0e4":"#F0EDE8"):(allDone?C.sageLight:"#FAFAFA");
+    const rowBg=isPantry?"#FAF8F5":C.card;
     return (
-      <div style={{marginBottom:8,borderRadius:14,overflow:"hidden",border:`1.5px solid ${allDone?C.sageMid:C.border}`,boxShadow:"0 1px 4px rgba(0,0,0,0.04)"}}>
-        <div onClick={()=>items.length>0&&toggleCollapse(aisle.id)}
-          style={{display:"flex",alignItems:"center",gap:10,padding:"13px 16px",background:allDone?C.sageLight:"#FAFAFA",cursor:items.length>0?"pointer":"default",userSelect:"none"}}>
+      <div style={{marginBottom:8,borderRadius:14,overflow:"hidden",border:`1.5px solid ${allDone?C.sageMid:isPantry?"#D8D2C8":C.border}`,boxShadow:"0 1px 4px rgba(0,0,0,0.04)"}}>
+        <div onClick={()=>items.length>0&&onToggle(aisle.id)}
+          style={{display:"flex",alignItems:"center",gap:10,padding:"13px 16px",background:headerBg,cursor:items.length>0?"pointer":"default",userSelect:"none"}}>
           <span style={{fontSize:22,lineHeight:1}}>{aisle.emoji}</span>
           <span style={{fontWeight:700,fontSize:15,color:allDone?C.sageDark:C.ink,flex:1}}>{aisle.label}</span>
           {items.length>0&&<span style={{fontSize:12,color:allDone?C.sage:C.muted,fontWeight:600}}>{doneCount}/{items.length}</span>}
           {items.length>0&&<span style={{fontSize:14,color:C.muted,marginLeft:4}}>{isCollapsed?"\u25b6":"\u25bc"}</span>}
         </div>
         {!isCollapsed&&<>
-          {items.map(item=><ItemRow key={item._key} item={item} onDel={onDel}/>)}
-          {addRow&&<div style={{padding:"4px 16px 8px",background:C.card}}>{addRow}</div>}
+          {items.map(item=><ItemRow key={item._key} item={item} onDel={onDel} rowBg={rowBg}/>)}
+          {addRow&&<div style={{padding:"4px 16px 8px",background:rowBg}}>{addRow}</div>}
         </>}
       </div>
     );
