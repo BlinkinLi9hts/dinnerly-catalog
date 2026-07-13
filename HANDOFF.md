@@ -3,6 +3,8 @@
 ## Greeting Protocol
 Brian opens with "Good morning/afternoon/evening/night." Claude reads this doc silently, then responds with a brief status summary and asks what we're working on today.
 
+**Session length warning:** After any major file operation (large read, multi-edit, write) or after ~5+ tool calls in a session, Claude must remind Brian: "We're getting into longer conversation territory — consider starting a fresh session before the next big change." Repeat the nudge if significant additional work is requested after the warning.
+
 ---
 
 ## Project Overview
