@@ -27,18 +27,57 @@
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
 const API_KEY_STORAGE  = "dinnerly-api-key";
-const STORAGE_KEY      = "dinnerly-recipes-v2";
-const SCHEDULE_KEY     = "dinnerly-schedule-v1";
+const SECRET_STORAGE   = "dinnerly-secret";
+const STORAGE_KEY      = "dinnerly-recipes-v2";  // legacy local only
+const SCHEDULE_KEY     = "dinnerly-schedule-v1"; // legacy local only
 const SHOP_CHECKED_KEY = "dinnerly-shop-checked-v1";
 
 function getApiKey() { return localStorage.getItem(API_KEY_STORAGE) || ""; }
 function setApiKey(k) { localStorage.setItem(API_KEY_STORAGE, k); }
-function loadRecipes() { try { const r=localStorage.getItem(STORAGE_KEY); return r?JSON.parse(r):[]; } catch { return []; } }
-function saveRecipes(recipes) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(recipes)); } catch {} }
-function loadSchedule() { try { const s=localStorage.getItem(SCHEDULE_KEY); return s?JSON.parse(s):{}; } catch { return {}; } }
-function saveSchedule(s) { try { localStorage.setItem(SCHEDULE_KEY, JSON.stringify(s)); } catch {} }
+function getDinnSecret() { return localStorage.getItem(SECRET_STORAGE) || ""; }
+function setDinnSecret(k) { localStorage.setItem(SECRET_STORAGE, k); }
+
+// Cloud API helpers
+async function cloudGet(endpoint) {
+  const res = await fetch(`/api/${endpoint}`);
+  if (!res.ok) throw new Error(`GET /api/${endpoint} failed: ${res.status}`);
+  return res.json();
+}
+async function cloudPost(endpoint, data) {
+  const secret = getDinnSecret();
+  const res = await fetch(`/api/${endpoint}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Dinnerly-Secret": secret },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(()=>({}));
+    throw new Error(err.error || `POST /api/${endpoint} failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+async function loadRecipes() {
+  try { return await cloudGet("recipes"); }
+  catch { return []; }
+}
+async function saveRecipes(recipes) {
+  try { await cloudPost("recipes", recipes); } catch(e) { console.error("saveRecipes:", e); }
+}
+async function loadSchedule() {
+  try { return await cloudGet("schedule"); }
+  catch { return {}; }
+}
+async function saveSchedule(s) {
+  try { await cloudPost("schedule", s); } catch(e) { console.error("saveSchedule:", e); }
+}
 function loadShopChecked() { try { const c=localStorage.getItem(SHOP_CHECKED_KEY); return c?JSON.parse(c):{}; } catch { return {}; } }
 function saveShopChecked(c) { try { localStorage.setItem(SHOP_CHECKED_KEY, JSON.stringify(c)); } catch {} }
+
+// Check if user has local recipes that haven't been migrated yet
+function getLocalRecipes() { try { const r=localStorage.getItem(STORAGE_KEY); return r?JSON.parse(r):[]; } catch { return []; } }
+function getLocalSchedule() { try { const s=localStorage.getItem(SCHEDULE_KEY); return s?JSON.parse(s):{}; } catch { return {}; } }
+function clearLocalData() { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(SCHEDULE_KEY); }
 
 async function callClaude(messages, system="", maxTokens=1200) {
   const key=getApiKey(); if (!key) throw new Error("NO_API_KEY");
