@@ -1255,7 +1255,7 @@ function ShoppingListScreen({recipes,schedule,onBack}) {
 
         {/* Pantry staples */}
         {allNeeded.length>0&&<>
-          <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginTop:20,marginBottom:10,paddingBottom:6,borderBottom:`1px solid ${C.border}`}}>Pantry Staples</div>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",color:C.muted,marginTop:20,marginBottom:10,paddingBottom:6,borderBottom:`2px solid ${C.border}`}}>🧂 Pantry Staples <span style={{fontWeight:400,fontSize:10,textTransform:"none",letterSpacing:0}}> — already at home</span></div>
           {AISLES.map(aisle=>{
             const items=pantryGroups[aisle.id]||[];
             if(items.length===0) return null;
