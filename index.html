@@ -1114,6 +1114,9 @@ function ShoppingListScreen({recipes,schedule,onBack}) {
   const [checked,setChecked]=useState(()=>loadShopChecked());
   const [delMode,setDelMode]=useState(false);
   const [collapsed,setCollapsed]=useState({});
+  const [collapsedPantry,setCollapsedPantry]=useState(()=>{
+    const init={}; AISLES.forEach(a=>{init[a.id]=true;}); return init;
+  });
 
   const updManual=m=>{setManual(m);saveShopManual(m);};
   const addManualItem=text=>{
