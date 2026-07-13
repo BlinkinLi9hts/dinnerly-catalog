@@ -11,7 +11,7 @@ A personal recipe catalog app for Brian's physical Dinnerly recipe card collecti
 **Live URL:** https://dinnerly-catalog.pages.dev
 **Repo:** https://github.com/BlinkinLi9hts/dinnerly-catalog
 **Local file:** C:\Projects\dinnerly-catalog\index.html
-**Current version:** v2.14 (live — pantry section independent collapse + warm tint differentiation)
+**Current version:** v2.14 (live)
 
 ---
 
@@ -39,7 +39,7 @@ A personal recipe catalog app for Brian's physical Dinnerly recipe card collecti
 ## File Structure
 ```
 C:\Projects\dinnerly-catalog\
-├── index.html                    (main app, v2.2)
+├── index.html                    (main app)
 ├── functions\
 │   └── api\
 │       ├── recipes.js            (GET/POST recipes to KV)
@@ -67,7 +67,7 @@ POST /api/recipes   → saves recipes array to KV (requires X-Dinnerly-Secret he
 GET  /api/schedule  → returns weekly schedule object from KV
 POST /api/schedule  → saves schedule object to KV (requires X-Dinnerly-Secret header)
 ```
-- Reads are public (no auth needed — recipes are not sensitive)
+- Reads are public (no auth needed)
 - Writes require `X-Dinnerly-Secret` header matching `DINNERLY_SECRET` env var
 - 401 returned on bad/missing secret
 
@@ -77,94 +77,105 @@ POST /api/schedule  → saves schedule object to KV (requires X-Dinnerly-Secret 
 1. **API Key Screen** — enter Anthropic API key (sk-ant-...), tested on save
 2. **Secret Screen** — enter shared `DINNERLY_SECRET` password (plum-themed), tests write access
 3. **Loading screen** — fetches recipes + schedule from KV
-4. **Migration banner** (if local recipes exist and cloud is empty) — "Upload to Cloud" button migrates localStorage data to KV, then clears local
+4. **Migration banner** (if local recipes exist and cloud is empty) — "Upload to Cloud" migrates localStorage data to KV then clears local
 
 ---
 
 ## Screen Flow
 **Home → Catalog (category grid) → Recipe List → Detail → Cook**
 **Home → Weekly Planner → Shopping List**
+**Home → Shopping List (direct)**
+**Home → Favorites**
 
 **Planner pick mode:** tap empty/edit day → catalog browse with purple banner → recipe detail → "Add to [Day]" → returns to planner
 
 ---
 
-## Feature Summary (v2.2 — current)
+## Feature Summary (v2.14 — current)
 
-### Cloud Storage & Sync
-- All recipe saves, deletes, photo updates, category changes → auto-POST to `/api/recipes`
-- Schedule changes → auto-POST to `/api/schedule`
-- **Save status toast** bottom-right: "Saving..." → "Saved" / "Save failed" (2.5s auto-dismiss)
-- Both Brian and wife see same recipes and weekly plan from any device
+### Home Screen
+- 4 hero cards: Recipe Catalog, Weekly Planner, Shopping List, Favorites
+- Recipe count badge; meal count badge; favorites count badge
+- Scan button (top right); Settings (gear icon)
 
-## Scan Flow (v2.7 target — simple, no viewfinder)
+### Scan Flow
 1. Tap "Scan" → camera auto-opens for **front** card
-2. Take photo → **CropModal** opens (pinch/drag, 16:9 frame, canvas-based)
+2. Take photo → **CropModal** (pinch/drag, 16:9 canvas crop)
 3. Tap "Use Photo" → camera auto-opens for **back** card
 4. Take photo → "Reading both sides..." → ReviewForm → Save
-- "Retake" in CropModal → back to front camera
-- Back photo: no crop (text only, no display value)
-- Front image: cropped version stored, 1200×675 JPEG at 0.82 quality
-- **No ViewfinderCapture / getUserMedia** — file inputs only
+- File inputs only (no getUserMedia/viewfinder)
+- Front image stored as 1200×675 JPEG at 0.82 quality
+- Claude extracts: title, servings, totalTime, ingredientsSent, ingredientsNeeded, tools, steps, nutrition
 
-### CropModal
-- Canvas-based, full-screen black overlay
-- Pinch to zoom (min: fill frame, max: 8×), drag to pan
-- Pan clamped so image can't leave crop frame
-- "Retake" → back to front camera; "Use Photo" → confirms crop, moves to back
-- Output: 1200×675 JPEG at 0.82 quality
-
-### Ingredient Routing (scan + shopping list)
-- **Scan prompt** explicitly tells Claude: no "to taste" / unmeasured items in `ingredientsSent`
-- **`cleanIngredients()`** post-processes every scan result: items with `qty=0`, `qty` missing, or matching `/to taste|as needed|as desired|to season|pinch of/i` are moved from `ingredientsSent` to `ingredientsNeeded`
-- **`buildShoppingList()`** applies same regex filter at aggregation time — fixes already-scanned recipes retroactively without re-scanning
-
-### Weekly Planner
-- Mon–Sun cards; empty day tap → catalog browse flow
-- Assigned day: Cook button, ✏️ (re-pick), ✕ (clear)
-- All buttons fully visible — flex overflow fixed with `minWidth:0`, `overflow:hidden` on title div, `flexShrink:0` + `marginLeft:8` on button group
-
-### Shopping List
-- **Ingredients to Buy:** `ingredientsSent` aggregated by name+unit, "Used in N recipes" note
-- **Pantry Staples:** `ingredientsNeeded` deduplicated + any "to taste" items that slipped into `ingredientsSent`
-- **Tools:** deduplicated
-- Check-off persists in localStorage per device (`dinnerly-shop-checked-v1`)
-- Reset button clears all checks
+### Duplicate Detection
+- Fuzzy title match (≥60% word overlap) on save
+- Side-by-side modal: keep existing / replace / save both
 
 ### Category System
 - 9 categories: Beef 🥩 Chicken 🍗 Pork 🐷 Seafood 🦐 Lamb 🐑 Pasta 🍝 Veggie 🌱 Eggs 🥚 Other 🍽️
-- Auto-detection from title keywords; manual override via "Change" button on detail screen
-- Category picker modal
+- Auto-detected from title keywords; manual override via "Change" button on Detail screen
+- CategoryScreen shows only populated categories with recipe counts
+- RecipeListScreen: alphabetical with letter section headers, A–Z jump bar (≥5 letters), live search
 
 ### Detail Screen
-- Category pill with "Change" button
-- Hero photo (220px, objectFit:contain, dark bg)
-- Serving scaler (+/−, presets [2,4,6,8,12,20], live ingredient scaling with fractions)
-- Ingredients list with "You'll also need" section
-- Steps preview (purple gradient bubbles)
-- Ask Claude chat
-- "Gather Ingredients & Cook" CTA
-- Planner-pick mode: replaces Cook button with purple "Add to [Day]"
-- Photo replace/remove overlay (visible on hover; touch may need first-tap to reveal — pending test)
+- Category pill with "Change" button → CategoryPicker modal
+- Hero photo (220px, objectFit:contain, dark bg); tap to replace, hover reveals Replace/Remove
+- Nutrition bar (dark strip below photo): Calories, Protein, Carbs, Fat — scales with serving size; hidden if no nutrition data
+- Serving scaler: +/−, direct input, presets [2,4,6,8,12,20]; live ingredient scaling with fractions
+- Ingredients list + "You'll also need" section
+- Steps preview with purple gradient bubbles
+- Ask Claude chat (context-aware, uses scaled quantities)
+- "Gather Ingredients & Cook" → IngredientChecklist → Cook Mode
+- Planner-pick mode: Cook button replaced by purple "Add to [Day]"
+- Favorite toggle (heart) in header
+
+### IngredientChecklist
+- Modal overlay, progress bar, tap to check/uncheck
+- SVG checkmarks (not `&checkmark;` — renders as "ckn" on Samsung Chrome)
+- Voice: "what's left" reads unchecked; "got that one" checks next; ingredient name fuzzy-checks; "ready to cook" launches Cook Mode
+- 🎙 "Heard:" debug display still present — remove once voice confirmed working
+- Voice mic button: Enable Voice / Listening...
 
 ### Cook Mode
-- Dark (#141414) background
-- Purple gradient step number bubbles (Dinnerly style)
+- Dark (#141414) background, purple gradient step bubbles
+- Progress bar, step counter
 - Voice nav: "next step", "continue", etc.
-- Ingredient drawer (🧄)
-- Wake Lock API (Android/Chrome)
+- Ingredient drawer (🧄 button, slides in from right)
+- Screen Wake Lock API (Android/Chrome); iOS reminder banner
 - "Enjoy your meal!" completion badge
 
-### Voice Checklist
-- "what's left" → reads unchecked items
-- "got that one" → checks next item
-- Ingredient name fuzzy match → checks specific item
-- "ready to start cooking" → launches cook mode
-- 🎙 Heard: debug display still present in v2.2
+### Favorites
+- Heart icon on LibraryCard (top-right) and Detail header
+- FavoritesScreen: flat grid of favorited recipes
+- Favorited cards get pinkish border (#e8a0a0)
+
+### Weekly Planner
+- Mon–Sun cards; tap empty day → catalog pick flow
+- Assigned day: Cook, ✏️ (re-pick), ✕ (clear)
+- "View Shopping List" shortcut when meals planned
+
+### Shopping List
+- Accessible from Home hero card or Planner
+- **Ingredients to Buy** grouped by 7 grocery aisles, each collapsible:
+  - 🥩 Meat & Seafood, 🥚 Dairy & Eggs, 🥦 Produce, 🫙 Pantry & Canned, 🧂 Spices & Seasonings, 🍞 Bread & Dry Goods, 🛒 Other
+- Items sorted alphabetically within each aisle
+- "Used in N recipes" note for shared ingredients
+- Aisle turns green + collapses when all items checked
+- **Pantry Staples** section: warm tint (#F0EDE8 headers, #FAF8F5 rows), starts fully collapsed, independent collapse state from Ingredients to Buy
+- "+ Add item" in Other aisle for manual additions; Edit mode shows × delete on custom items
+- "Custom" pill tag on manually added items
+- Overall progress bar + item count
+- Check state persists in localStorage; Reset clears all
+- Tap rows to check/uncheck; stopPropagation prevents Android back-nav trigger
 
 ### Android Back Button
-- Intercepts popstate: cook→detail→recipelist→catalog→home; planner-pick mode aware
-- "Tap back again to exit" toast on home
+- Intercepts popstate throughout app; planner-pick mode aware
+- "Tap back again to exit" toast on home screen
+
+### Cloud Sync
+- All recipe saves, deletes, photo updates, category changes, favorites → auto-POST to `/api/recipes`
+- Schedule changes → auto-POST to `/api/schedule`
+- Save status toast: "Saving..." → "Saved" / "Save failed"
 
 ---
 
@@ -175,7 +186,7 @@ POST /api/schedule  → saves schedule object to KV (requires X-Dinnerly-Secret 
   "title": "...",
   "servings": 4,
   "totalTime": "20 min",
-  "frontImage": "base64 compressed JPEG (1200px, 0.82q)",
+  "frontImage": "base64 compressed JPEG (1200×675, 0.82q)",
   "ingredientsSent": [{ "name": "...", "qty": 0.5, "unit": "lb", "display": "½ lb ..." }],
   "ingredientsNeeded": ["kosher salt", "olive oil"],
   "ingredients": "(legacy copy of ingredientsSent — kept for backward compat)",
@@ -183,6 +194,7 @@ POST /api/schedule  → saves schedule object to KV (requires X-Dinnerly-Secret 
   "steps": [{ "title": "Cook pasta", "body": "Full instructions..." }],
   "nutrition": { "calories": 780, "protein": "46g", "carbs": "71g", "fat": "30g" },
   "category": "beef",
+  "favorite": true,
   "addedAt": "ISO string"
 }
 ```
@@ -199,45 +211,38 @@ C = { ink:"#1C1C1E", paper:"#F5F2ED", card:"#FFFFFF", sage:"#4A7C59",
 
 ---
 
-## Known Issues / Pending
+## Pending Items
 
 | # | Issue | Status |
 |---|-------|--------|
-| 1 | Cloud storage end-to-end — needs first full test on live site | ✅ Verified working v2.3 |
-| 2 | Secret screen → verify it correctly validates and saves on both devices | ✅ Fixed in v2.3 |
-| 3 | Migration flow — needs test: local recipes → "Upload to Cloud" → verify cloud has them | ✅ Pass |
-| 4 | Photo Replace/Remove overlay uses hover opacity — may be invisible on first touch on tablet | ✅ Pass |
-| 5 | Voice checklist "got that one" / "what's left" — needs re-test on tablet after rewrite | 🔧 Pending |
-| 6 | Seed recipe (Macaroni Bolognese id:1720000000000) still in code | ⏳ Remove once real cards scanned |
-| 7 | "Heard:" debug display still in voice checklist | ⏳ Remove once voice confirmed working |
-| 8 | v2.7 clean rewrite — full file written in one pass, deployed and verified | ✅ Done |
-| 9 | v2.8 recipe list scroll + alpha bar — deployed manually (filesystem MCP write hung) | ✅ Done |
+| 1 | Voice checklist "got that one" / "what's left" — needs re-test on tablet | 🔧 Pending |
+| 2 | Remove "Heard:" debug display from IngredientChecklist once voice confirmed | ⏳ Pending |
+| 3 | Remove seed recipe (Macaroni Bolognese id:1720000000000) once real cards scanned | ⏳ Pending |
 
 ---
 
-## MCP / Environment
-- Filesystem MCP paths: `C:\Projects\blinkinlights-studio` and `C:\Projects\dinnerly-catalog`
+## MCP / Environment Notes
+- Filesystem MCP: use `filesystem:edit_file` (not `str_replace` — hangs on large files)
+- Filesystem MCP paths: `C:\Projects\dinnerly-catalog`
 - Claude Desktop config: `C:\Users\bbuts\AppData\Roaming\Claude\claude_desktop_config.json`
-- Anthropic API key stored in browser localStorage on each device separately
-- Shared secret stored in browser localStorage on each device separately
 - Primary use device: Samsung Android tablet, Chrome
+- Samsung Chrome quirk: `&checkmark;` HTML entity renders as "ckn" — always use inline SVG checkmarks
 
 ---
 
 ## Version History
-- v1.0–1.5: Initial React JSX artifact → standalone HTML, scan, cook mode, voice, checklist
-- v1.6: Voice debug display ("Heard:"), expanded phrase lists, back button interception
-- v1.7: Photo edit on detail screen (replace/remove/add), category pill placeholder
-- v1.8: Image compression (canvas, 800px/0.72q), photo compression on replace
-- v1.9: Category system — CategoryScreen landing, RecipeListScreen, CategoryPicker modal, detectCategory(), CATEGORIES array, full routing overhaul
-- v2.0: Weekly Planner (Mon–Sun), planner pick flow (catalog browse → add to day), Shopping List (aggregated ingredients + pantry staples + tools), check-off with localStorage persistence, Android back button planner-aware routing
-- v2.1: CropModal (pinch/drag 16:9 canvas crop), fast scan flow (camera auto-opens → crop → camera auto-opens → parse → review), no manual "Read Recipe Cards" button
-- v2.2: **Cloudflare KV cloud storage** — recipes and schedule stored in KV, shared across all devices; SecretScreen (shared password entry); loading screen; save status toast; migration prompt for existing localStorage data; ingredient routing fix ("to taste" items → pantry staples at scan time and shopping list display time); weekly planner button overflow fix
-- v2.3: **Cloud storage bug fixes** — recreated missing `functions/api/recipes.js` and `functions/api/schedule.js` (never committed to repo); fixed SecretScreen POSTing `null` to KV on every new device setup (wiped all recipes); fixed `seedIfEmpty()` re-injecting seed after migration. Full end-to-end cloud round-trip verified working.
-- v2.4: **Duplicate detection** — fuzzy title matching (≥60% word overlap) checks for duplicates on save; side-by-side modal shows existing vs new scan with date/steps/ingredients; options to keep existing, replace, or save both.
-- v2.5–2.6: **Auto-crop & viewfinder experiments** — attempted fixed-percentage auto-crop and live getUserMedia viewfinder for front card; both abandoned due to card distance variability and UX friction. File became corrupted from incremental edits.
-- v2.7: **Clean rewrite** — full file rewritten via Cowork; restores simple scan flow (front file input → CropModal → back file input → parse → review); removes ViewfinderCapture entirely; all v2.4 features preserved.
-- v2.8: **Scrollable recipe list with alpha index** — RecipeListScreen now height-constrained with overflowY scroll; recipes sorted alphabetically and grouped by first letter with section headers; A–Z jump bar on right edge (touch drag supported) appears when 5+ letters present; recipe count shown in header.
-- v2.9: **Search** — live search bar on CategoryScreen (filters protein tiles by name or matching recipe titles); live search bar on RecipeListScreen (filters cards by title, bypasses alpha grouping, alpha bar hidden while searching); × clear button on both; no-results state on both.
-- v2.10: **Shopping List hero button + manual items** — third hero card on HomeScreen; manual items in localStorage; Edit mode for delete; custom pill tag.
-- v2.14: **Shopping list polish** — Pantry Staples section starts fully collapsed; independent collapse state from Ingredients to Buy (collapsing Produce in one section no longer affects the other); pantry section gets warm tint headers (#F0EDE8) and row backgrounds (#FAF8F5) vs cool white in ingredients; pantry borders use #D8D2C8; section heading updated to “🧂 Pantry Staples — already at home” with 2px border demark. Also in this session: SVG checkmarks replacing &checkmark; HTML entity everywhere (was rendering as “ckn” on Samsung Chrome); stopPropagation on ItemRow to fix tap-to-check triggering Android back-nav. — ShoppingListScreen rebuilt; items auto-classified into 7 grocery aisles (Meat & Seafood, Dairy & Eggs, Produce, Pantry & Canned, Spices & Seasonings, Bread & Dry Goods, Other); sorted alphabetically within each aisle; collapsible sections (tap header); green border + sageLight bg when aisle fully checked; item count badge per section; single + Add Item row in Other section; pantry staples also aisle-grouped; old Ingredients/Pantry split retained as two heading levels. — dark strip below hero photo on DetailScreen; shows Calories, Protein, Carbs, Fat; values scale with serving size scaler; hidden if recipe has no nutrition data (older cards). — heart icon on LibraryCard (top-right, dark pill button) and DetailScreen header; toggles recipe.favorite boolean and saves to KV; FavoritesScreen shows flat grid of favorited recipes; fourth hero button on HomeScreen with saved count badge; favorite cards get pinkish border; Android back button handles favorites screen; onToggleFavorite threaded through RecipeListScreen and DetailScreen. — third hero card on HomeScreen routes directly to ShoppingListScreen; manual items stored in localStorage (SHOP_MANUAL_KEY); “+ Add item” rows in Ingredients to Buy and Pantry Staples sections; Edit mode reveals × delete buttons on custom items only; custom items tagged with “custom” pill; empty state updated to show even with no planned meals; This week banner now conditional on assigned days.
+- v1.x: Initial React JSX artifact → standalone HTML; scan, cook mode, voice, checklist, wake lock, seed recipe
+- v2.0: Weekly Planner, Shopping List (aggregated ingredients + pantry staples + tools), check-off with localStorage, Android back button
+- v2.1: CropModal (pinch/drag 16:9 canvas crop), fast scan flow
+- v2.2: Cloudflare KV cloud storage; SecretScreen; save status toast; migration prompt; ingredient routing fix ("to taste" → pantry)
+- v2.3: Cloud storage bug fixes — recreated missing functions files; fixed SecretScreen wiping KV on new device setup; fixed seed re-injection after migration
+- v2.4: Duplicate detection — fuzzy title matching modal (keep / replace / save both)
+- v2.5–2.6: Auto-crop and viewfinder experiments — abandoned; file corrupted
+- v2.7: Clean full rewrite via Cowork; all v2.4 features preserved; simple scan flow restored
+- v2.8: Scrollable RecipeListScreen with alphabetical grouping and A–Z jump bar
+- v2.9: Live search on CategoryScreen and RecipeListScreen
+- v2.10: Shopping List hero button on Home; manual item add/delete; Edit mode
+- v2.11: Favorites — heart toggle on cards and Detail; FavoritesScreen; Home hero card with count badge
+- v2.12: Nutrition bar on Detail screen — Calories/Protein/Carbs/Fat, scales with serving scaler, hidden if no data
+- v2.13: Aisle-grouped Shopping List — 7 grocery aisles, collapsible sections, alphabetical within aisle, green completion state, separate Pantry Staples section; SVG checkmarks replacing `&checkmark;`; stopPropagation on item rows fixing Android back-nav bug
+- v2.14: Pantry Staples starts collapsed; independent collapse state from Ingredients to Buy; warm tint differentiation (headers #F0EDE8, rows #FAF8F5, borders #D8D2C8); section label updated to "🧂 Pantry Staples — already at home"
