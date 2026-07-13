@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Dinnerly Recipe Catalog v1.7</title>
+<title>Dinnerly Recipe Catalog v1.8</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -50,6 +50,23 @@ async function callClaude(messages, system = "", maxTokens = 1200) {
   if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || "API error"); }
   const data = await res.json();
   return data.content?.find(b => b.type === "text")?.text || "";
+}
+
+// ── Image compression ────────────────────────────────────────────────────────
+function compressImage(dataUrl, maxWidth = 800, quality = 0.72) {
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      const ratio = Math.min(1, maxWidth / img.width);
+      const w = Math.round(img.width * ratio);
+      const h = Math.round(img.height * ratio);
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      res(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.src = dataUrl;
+  });
 }
 
 function imgBlock(base64, mediaType) {
@@ -247,7 +264,7 @@ function ApiKeyScreen({ onSaved }) {
       <div style={{background:C.card, borderRadius:16, padding:32, maxWidth:480, width:"100%", boxShadow:"0 4px 32px rgba(0,0,0,0.08)"}}>
         <div style={{fontSize:28, fontWeight:700, color:C.sage, marginBottom:6}}>Dinnerly</div>
         <div style={{fontSize:14, color:C.muted, marginBottom:4}}>Recipe Catalog — first-time setup</div>
-        <div style={{fontSize:11, color:C.muted, marginBottom:24, letterSpacing:1}}>v1.7</div>
+        <div style={{fontSize:11, color:C.muted, marginBottom:24, letterSpacing:1}}>v1.8</div>
         <div style={{fontSize:15, fontWeight:700, marginBottom:8}}>Enter your Anthropic API key</div>
         <div style={{fontSize:13, color:C.muted, marginBottom:16, lineHeight:1.5}}>
           Get one free at <strong>console.anthropic.com</strong> → API Keys. Stored only on this device.
@@ -384,7 +401,8 @@ function ScanScreen({ onBack, onSaved }) {
     setError(null); setStage("parsing");
     try {
       const parsed = await parseRecipeCards(front.base64,front.type,back.base64,back.type);
-      setRecipe({...parsed, id:Date.now(), addedAt:new Date().toISOString(), frontImage:front.dataUrl});
+      const compressed = await compressImage(front.dataUrl);
+      setRecipe({...parsed, id:Date.now(), addedAt:new Date().toISOString(), frontImage:compressed});
       setStage("review");
     } catch(e) {
       setError("Couldn't read the cards: " + e.message + ". Make sure both images are clear.");
@@ -566,10 +584,13 @@ function DetailScreen({ recipe, onBack, onCook, onUpdatePhoto }) {
   const photoInputRef = useRef();
   const chatRef = useRef();
 
-  const handlePhotoChange = (file) => {
+  const handlePhotoChange = async (file) => {
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = e => onUpdatePhoto(recipe.id, e.target.result);
+    reader.onload = async e => {
+      const compressed = await compressImage(e.target.result);
+      onUpdatePhoto(recipe.id, compressed);
+    };
     reader.readAsDataURL(file);
   };
 
