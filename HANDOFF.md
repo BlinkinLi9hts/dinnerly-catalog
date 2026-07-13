@@ -13,7 +13,7 @@ A personal recipe catalog app for Brian's physical Dinnerly recipe card collecti
 **Live URL:** https://dinnerly-catalog.pages.dev
 **Repo:** https://github.com/BlinkinLi9hts/dinnerly-catalog
 **Local file:** C:\Projects\dinnerly-catalog\index.html
-**Current version:** v2.15 (live)
+**Current version:** v2.16 (live)
 
 ---
 
@@ -96,17 +96,18 @@ POST /api/schedule  → saves schedule object to KV (requires X-Dinnerly-Secret 
 **Home → Weekly Planner → Shopping List**
 **Home → Shopping List (direct)**
 **Home → Favorites**
+**Home → Battle (⚔️ recipe battle mode)**
 
 **Planner pick mode:** tap empty/edit day → catalog browse with purple banner → recipe detail → "Add to [Day]" → returns to planner
 
 ---
 
-## Feature Summary (v2.15 — current)
+## Feature Summary (v2.16 — current)
 
 ### Home Screen
 - 4 hero cards: Recipe Catalog, Weekly Planner, Shopping List, Favorites
 - Recipe count badge; meal count badge; favorites count badge
-- Scan button (top right); Settings (gear icon)
+- Scan button (top right); Settings (gear icon); Battle button (⚔️)
 
 ### Scan Flow (in-app, single card)
 1. Tap "Scan" → camera auto-opens for **front** card
@@ -169,7 +170,6 @@ POST /api/schedule  → saves schedule object to KV (requires X-Dinnerly-Secret 
 - `stopped` flag in both `useChecklistVoice` and `useVoice` prevents ghost restarts after toggle-off or screen transition
 - `stopSpeaking()` called on checklist voice cleanup — no audio bleed into Cook Mode
 - 🎙 "Heard:" debug display still present — remove once voice fully validated
-- Voice mic button: Enable Voice / Listening...
 
 ### Cook Mode
 - Dark (#141414) background, purple gradient step bubbles
@@ -203,8 +203,15 @@ POST /api/schedule  → saves schedule object to KV (requires X-Dinnerly-Secret 
 - Check state persists in localStorage; Reset clears all
 - Tap rows to check/uncheck; stopPropagation prevents Android back-nav trigger
 
+### Recipe Battle (⚔️)
+- Accessible from Home via ⚔️ button
+- Setup screen: choose 2–7 nights; randomly pairs recipes head-to-head
+- Battle screen: tap to pick winner per matchup; SVG checkmark overlay on chosen card
+- Results screen: assign each winner to a day of the week; confirm sends to Weekly Planner
+- Dark theme throughout; orange accent for selections
+
 ### Android Back Button
-- Intercepts popstate throughout app; planner-pick mode aware
+- Intercepts popstate throughout app; planner-pick mode and battle screen aware
 - "Tap back again to exit" toast on home screen
 
 ### Cloud Sync
@@ -261,6 +268,7 @@ C = { ink:"#1C1C1E", paper:"#F5F2ED", card:"#FFFFFF", sage:"#4A7C59",
 - Claude Desktop config: `C:\Users\bbuts\AppData\Roaming\Claude\claude_desktop_config.json`
 - Primary use device: Samsung Android tablet, Chrome
 - Samsung Chrome quirk: `&checkmark;` HTML entity renders as "ckn" — always use inline SVG checkmarks
+- Unicode escape sequences (e.g. `\u2713`) inside JSX string literals do NOT render — use inline SVG or real UTF-8 characters
 - Python: two installations on machine (3.12 and 3.14); use `python -m pip` to install packages
 
 ---
@@ -281,4 +289,5 @@ C = { ink:"#1C1C1E", paper:"#F5F2ED", card:"#FFFFFF", sage:"#4A7C59",
 - v2.12: Nutrition bar on Detail screen — Calories/Protein/Carbs/Fat, scales with serving scaler, hidden if no data
 - v2.13: Aisle-grouped Shopping List — 7 grocery aisles, collapsible sections, alphabetical within aisle, green completion state, separate Pantry Staples section; SVG checkmarks replacing `&checkmark;`; stopPropagation on item rows fixing Android back-nav bug
 - v2.14: Pantry Staples starts collapsed; independent collapse state from Ingredients to Buy; warm tint differentiation (headers #F0EDE8, rows #FAF8F5, borders #D8D2C8); section label updated to "🧂 Pantry Staples — already at home"
-- v2.15: Voice overhaul — expanded phrase lists; "how much X" quantity query; ingredient word match threshold lowered to >2 chars; stopped flag fixes ghost restarts; stopSpeaking on checklist cleanup prevents audio bleed into Cook Mode; seed recipe removed; batch-scan.py desktop scanner built (pdf2image + Poppler + Claude API + KV POST; auto-crop 16:9; duplicate detection; checkpoint saves; pause on failure)
+- v2.15: Voice overhaul — expanded phrase lists; "how much X" quantity query; ingredient word match threshold lowered to >2 chars; stopped flag fixes ghost restarts; stopSpeaking on checklist cleanup prevents audio bleed into Cook Mode; seed recipe removed; batch-scan.py desktop scanner built
+- v2.16: Recipe Battle (⚔️) — head-to-head recipe matchups, results assigned to weekly planner; BattleScreen SVG checkmark fix (unicode escape renders literally in JSX strings)
