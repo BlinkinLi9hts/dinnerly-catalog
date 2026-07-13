@@ -1499,26 +1499,7 @@ function CookScreen({recipe,guestCount,scaledIngredients,onBack}) {
   );
 }
 
-const SEED_RECIPE={
-  id:1720000000000,addedAt:"2026-07-11T00:00:00.000Z",
-  title:"Macaroni with Beef Bolognese Sauce & Shredded Cheese",
-  servings:4,totalTime:"ca 20 min",frontImage:null,
-  ingredients:[{name:"elbow macaroni",qty:0.5,unit:"lb",display:"1/2 lb elbow macaroni"},{name:"grass-fed ground beef",qty:0.5,unit:"lb",display:"1/2 lb grass-fed ground beef"},{name:"tomato sauce",qty:2,unit:"oz",display:"2 oz tomato sauce"},{name:"cream cheese",qty:2,unit:"oz",display:"2 oz cream cheese"},{name:"shredded cheddar jack blend",qty:2,unit:"oz",display:"2 oz shredded cheddar-jack blend"}],
-  ingredientsSent:[{name:"elbow macaroni",qty:0.5,unit:"lb",display:"1/2 lb elbow macaroni"},{name:"grass-fed ground beef",qty:0.5,unit:"lb",display:"1/2 lb grass-fed ground beef"},{name:"tomato sauce",qty:2,unit:"oz",display:"2 oz tomato sauce"},{name:"cream cheese",qty:2,unit:"oz",display:"2 oz cream cheese"},{name:"shredded cheddar jack blend",qty:2,unit:"oz",display:"2 oz shredded cheddar-jack blend"}],
-  ingredientsNeeded:["olive oil","kosher salt & ground pepper","sugar"],
-  tools:["medium saucepan","large skillet"],
-  steps:[{title:"Cook pasta & beef",body:"Bring a medium saucepan of salted water to a boil. Add pasta, cook stirring until al dente, 8-9 minutes. Reserve 1 cup cooking water and drain. Meanwhile, heat 2 tbsp olive oil in a large skillet over medium-high heat. Add beef, cook breaking up until well browned, 5-7 minutes."},{title:"Build sauce",body:"To skillet with beef add tomato sauce, broth concentrate, steak seasoning, and 1/4 tsp sugar. Bring to a simmer, reduce heat. Stir in cream cheese and half the shredded cheese until melted. Season with salt and pepper."},{title:"Add pasta & serve",body:"Add pasta to skillet and stir until combined, thinning with pasta water if needed. Serve with remaining cheese on top. Enjoy!"}],
-  nutrition:{calories:780,protein:"46g",carbs:"71g",fat:"30g"}
-};
 
-function seedIfEmpty() {
-  try{
-    if(localStorage.getItem(SECRET_STORAGE)) return;
-    const e=localStorage.getItem(STORAGE_KEY); const a=e?JSON.parse(e):[];
-    if(a.length===0)localStorage.setItem(STORAGE_KEY,JSON.stringify([SEED_RECIPE]));
-  }catch(e){}
-}
-seedIfEmpty();
 
 function App() {
   const [hasKey,setHasKey]=useState(!!getApiKey());
