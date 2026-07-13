@@ -1749,8 +1749,8 @@ function App() {
       if(screen==="recipelist"){setScreen("catalog");return;}
       if(screen==="catalog"){if(plannerPickDay){setPlannerPickDay(null);setScreen("planner");return;}setScreen("home");return;}
       if(screen==="planner"||screen==="shopping"||screen==="favorites"){setScreen("home");return;}
-      if(screen==="battle") return <BattleScreen recipes={recipes} onBack={()=>setScreen("home")} onConfirm={async s=>{await handleUpdateSchedule(s);setScreen("planner");}}/>;
-  if(screen==="scan"){setScreen(activeCategory?"recipelist":"catalog");return;}
+      if(screen==="battle"){setScreen("home");return;}
+      if(screen==="scan"){setScreen(activeCategory?"recipelist":"catalog");return;}
       if(showSettings){setShowSettings(false);return;}
       if(exitPrompt){window.history.back();return;}
       setExitPrompt(true);setTimeout(()=>setExitPrompt(false),2000);
