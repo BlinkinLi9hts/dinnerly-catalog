@@ -157,12 +157,18 @@ function buildShoppingList(schedule, recipes) {
   const sentMap={};
   const neededSet=new Set();
   const toolsSet=new Set();
+  const TO_TASTE=/to taste|as needed|as desired|to season|pinch of/i;
   const DAYS=["mon","tue","wed","thu","fri","sat","sun"];
   DAYS.forEach(day=>{
     const rid=schedule[day]; if (!rid) return;
     const r=recipeMap[rid]; if (!r) return;
     const src=r.ingredientsSent||r.ingredients||[];
     src.forEach(ing=>{
+      // Route "to taste" / zero-qty to pantry staples
+      if (!ing.qty || ing.qty<=0 || TO_TASTE.test(ing.display||"") || TO_TASTE.test(ing.name||"")) {
+        neededSet.add(ing.display||ing.name);
+        return;
+      }
       const key=`${ing.name.toLowerCase().trim()}|${(ing.unit||"").toLowerCase().trim()}`;
       if (sentMap[key]) { sentMap[key].qty+=ing.qty||0; sentMap[key].recipes.push(r.title); }
       else { sentMap[key]={name:ing.name,unit:ing.unit||"",qty:ing.qty||0,recipes:[r.title]}; }
