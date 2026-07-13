@@ -1179,7 +1179,7 @@ function ShoppingListScreen({recipes,schedule,onBack}) {
   );
 }
 
-function DetailScreen({recipe,onBack,onCook,onUpdatePhoto,onUpdateCategory,plannerPickDay,plannerDayLabel,onAddToPlanner}) {
+function DetailScreen({recipe,onBack,onCook,onUpdatePhoto,onUpdateCategory,onToggleFavorite,plannerPickDay,plannerDayLabel,onAddToPlanner}) {
   const [guestCount,setGuestCount]=useState(recipe.servings);
   const [scaledIng,setScaledIng]=useState(()=>scaleIngredients(recipe,recipe.servings));
   const [scaling,setScaling]=useState(false);
@@ -1209,9 +1209,14 @@ function DetailScreen({recipe,onBack,onCook,onUpdatePhoto,onUpdateCategory,plann
 
   return (
     <div style={{...base,minHeight:"100vh",background:C.paper}}>
-      <TopBar onBack={onBack} title={recipe.title} right={plannerPickDay
-        ?<button onClick={onAddToPlanner} style={{...btnP,background:C.plum,padding:"8px 18px",fontSize:14}}>Add to {plannerDayLabel}</button>
-        :<button onClick={()=>setShowChecklist(true)} style={{...btnP,background:C.orange,padding:"8px 18px",fontSize:14}}>Cook</button>}/>
+      <TopBar onBack={onBack} title={recipe.title} right={
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          {onToggleFavorite&&<button onClick={()=>onToggleFavorite(recipe.id)} style={{background:"rgba(255,255,255,0.15)",border:"none",borderRadius:8,padding:"7px 10px",fontSize:20,cursor:"pointer",lineHeight:1}}>{recipe.favorite?"\u2764\ufe0f":"\ud83e\udd0d"}</button>}
+          {plannerPickDay
+            ?<button onClick={onAddToPlanner} style={{...btnP,background:C.plum,padding:"8px 18px",fontSize:14}}>Add to {plannerDayLabel}</button>
+            :<button onClick={()=>setShowChecklist(true)} style={{...btnP,background:C.orange,padding:"8px 18px",fontSize:14}}>Cook</button>}
+        </div>
+      }/>
       <div style={{background:C.sageLight,padding:"8px 24px",display:"flex",alignItems:"center",gap:8}}>
         <span style={{fontSize:16}}>{currentCat.emoji}</span>
         <span style={{fontSize:13,color:C.sageDark,fontWeight:600}}>{currentCat.label}</span>
