@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Dinnerly Recipe Catalog v2.3</title>
+<title>Dinnerly Recipe Catalog v2.4</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
@@ -344,7 +344,7 @@ function ApiKeyScreen({onSaved}) {
       <div style={{background:C.card,borderRadius:16,padding:32,maxWidth:480,width:"100%",boxShadow:"0 4px 32px rgba(0,0,0,0.08)"}}>
         <div style={{fontSize:28,fontWeight:700,color:C.sage,marginBottom:6}}>Dinnerly</div>
         <div style={{fontSize:14,color:C.muted,marginBottom:4}}>Recipe Catalog</div>
-        <div style={{fontSize:11,color:C.muted,marginBottom:24,letterSpacing:1}}>v2.3</div>
+        <div style={{fontSize:11,color:C.muted,marginBottom:24,letterSpacing:1}}>v2.4</div>
         <div style={{fontSize:15,fontWeight:700,marginBottom:8}}>Enter your Anthropic API key</div>
         <div style={{fontSize:13,color:C.muted,marginBottom:16,lineHeight:1.5}}>Get one free at <strong>console.anthropic.com</strong> &gt; API Keys. Stored only on this device.</div>
         <div style={{position:"relative",marginBottom:8}}>
@@ -1519,6 +1519,13 @@ function App() {
       )}
       {exitPrompt&&<div style={{position:"fixed",bottom:40,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,0.8)",color:"#fff",padding:"12px 24px",borderRadius:50,fontSize:15,fontWeight:600,zIndex:999,whiteSpace:"nowrap"}}>Tap back again to exit</div>}
       {saveToast}
+      {dupCheck&&<DuplicateModal
+        newRecipe={dupCheck.newRecipe}
+        existing={dupCheck.existing}
+        onKeepExisting={()=>{setDupCheck(null);}}
+        onSaveNew={()=>commitSave(dupCheck.newRecipe)}
+        onReplace={()=>commitReplace(dupCheck.newRecipe,dupCheck.existing.id)}
+      />}
     </>
   );
 }
