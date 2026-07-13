@@ -1518,8 +1518,11 @@ function BattleScreen({recipes,onBack,onConfirm}) {
 
   const updateDay=(wi,day)=>setAssignedDays(prev=>{const n=[...prev];n[wi]=day;return n;});
   const cat=r=>getCategoryInfo(detectCategory(r.title,r.category));
-
-  const startBattle=()=>{
+  const handleConfirm=()=>{
+    const newSchedule={};
+    winners.forEach((r,i)=>{ if(assignedDays[i]) newSchedule[assignedDays[i]]=r.id; });
+    onConfirm(newSchedule);
+  };=()=>{
     // Shuffle recipes and pick numDays*2 (or as many as available)
     const shuffled=[...recipes].sort(()=>Math.random()-0.5);
     const pool=shuffled.slice(0,Math.min(numDays*2,shuffled.length));
@@ -1551,9 +1554,7 @@ function BattleScreen({recipes,onBack,onConfirm}) {
     },600);
   };
 
-  const cat=r=>getCategoryInfo(detectCategory(r.title,r.category));
-
-  // SETUP SCREEN
+  const startBattle
   if(stage==="setup") return (
     <div style={{...base,minHeight:"100vh",background:C.dark,display:"flex",flexDirection:"column"}}>
       <div style={{background:"rgba(255,255,255,0.05)",padding:"18px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -1639,11 +1640,6 @@ function BattleScreen({recipes,onBack,onConfirm}) {
   }
 
   // RESULTS SCREEN
-  const handleConfirm=()=>{
-    const newSchedule={};
-    winners.forEach((r,i)=>{ if(assignedDays[i]) newSchedule[assignedDays[i]]=r.id; });
-    onConfirm(newSchedule);
-  };
   return (
     <div style={{...base,minHeight:"100vh",background:C.dark,display:"flex",flexDirection:"column"}}>
       <div style={{background:"rgba(255,255,255,0.05)",padding:"18px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
