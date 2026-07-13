@@ -11,7 +11,7 @@ A personal recipe catalog app for Brian's physical Dinnerly recipe card collecti
 **Live URL:** https://dinnerly-catalog.pages.dev
 **Repo:** https://github.com/BlinkinLi9hts/dinnerly-catalog
 **Local file:** C:\Projects\dinnerly-catalog\index.html
-**Current version:** v2.14 (live)
+**Current version:** v2.15 (live)
 
 ---
 
@@ -91,7 +91,7 @@ POST /api/schedule  → saves schedule object to KV (requires X-Dinnerly-Secret 
 
 ---
 
-## Feature Summary (v2.14 — current)
+## Feature Summary (v2.15 — current)
 
 ### Home Screen
 - 4 hero cards: Recipe Catalog, Weekly Planner, Shopping List, Favorites
@@ -132,14 +132,22 @@ POST /api/schedule  → saves schedule object to KV (requires X-Dinnerly-Secret 
 ### IngredientChecklist
 - Modal overlay, progress bar, tap to check/uncheck
 - SVG checkmarks (not `&checkmark;` — renders as "ckn" on Samsung Chrome)
-- Voice: "what's left" reads unchecked; "got that one" checks next; ingredient name fuzzy-checks; "ready to cook" launches Cook Mode
-- 🎙 "Heard:" debug display still present — remove once voice confirmed working
+- Voice uses Web Speech API (native Chrome/Google engine) — no external service, zero latency
+- Voice commands (all confirmed working on tablet):
+  - **"got that one" / "got it" / "have that"** etc. → checks off next unchecked ingredient
+  - **"what's left" / "what is left" / "still need"** etc. → reads unchecked items aloud
+  - **"ready to cook" / "ready" / "start"** etc. → launches Cook Mode
+  - **"how much X" / "how many X"** → speaks back quantity for that ingredient (read-only, works on already-checked items too)
+  - **Ingredient name** → fuzzy word match (>2 chars) checks that ingredient off
+- `stopped` flag in both `useChecklistVoice` and `useVoice` prevents ghost restarts after toggle-off or screen transition
+- `stopSpeaking()` called on checklist voice cleanup — no audio bleed into Cook Mode
+- 🎙 "Heard:" debug display still present — remove once voice fully validated
 - Voice mic button: Enable Voice / Listening...
 
 ### Cook Mode
 - Dark (#141414) background, purple gradient step bubbles
 - Progress bar, step counter
-- Voice nav: "next step", "continue", etc.
+- Voice nav: "next step", "continue", "next", etc. (uses same `stopped` flag pattern)
 - Ingredient drawer (🧄 button, slides in from right)
 - Screen Wake Lock API (Android/Chrome); iOS reminder banner
 - "Enjoy your meal!" completion badge
@@ -215,9 +223,8 @@ C = { ink:"#1C1C1E", paper:"#F5F2ED", card:"#FFFFFF", sage:"#4A7C59",
 
 | # | Issue | Status |
 |---|-------|--------|
-| 1 | Voice checklist "got that one" / "what's left" — needs re-test on tablet | 🔧 Pending |
-| 2 | Remove "Heard:" debug display from IngredientChecklist once voice confirmed | ⏳ Pending |
-| 3 | Remove seed recipe (Macaroni Bolognese id:1720000000000) once real cards scanned | ⏳ Pending |
+| 1 | Remove "Heard:" debug display from IngredientChecklist once voice fully validated | ⏳ Pending |
+| 2 | Remove seed recipe (Macaroni Bolognese id:1720000000000) once real cards scanned | ⏳ Pending |
 
 ---
 
@@ -246,3 +253,4 @@ C = { ink:"#1C1C1E", paper:"#F5F2ED", card:"#FFFFFF", sage:"#4A7C59",
 - v2.12: Nutrition bar on Detail screen — Calories/Protein/Carbs/Fat, scales with serving scaler, hidden if no data
 - v2.13: Aisle-grouped Shopping List — 7 grocery aisles, collapsible sections, alphabetical within aisle, green completion state, separate Pantry Staples section; SVG checkmarks replacing `&checkmark;`; stopPropagation on item rows fixing Android back-nav bug
 - v2.14: Pantry Staples starts collapsed; independent collapse state from Ingredients to Buy; warm tint differentiation (headers #F0EDE8, rows #FAF8F5, borders #D8D2C8); section label updated to "🧂 Pantry Staples — already at home"
+- v2.15: Voice overhaul — expanded phrase lists for all commands; "how much X" quantity query (read-only); ingredient word match threshold lowered to >2 chars; `stopped` flag fixes ghost restarts after toggle-off and screen transition; `stopSpeaking()` on checklist cleanup prevents audio bleed into Cook Mode
