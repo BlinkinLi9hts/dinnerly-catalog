@@ -4,3 +4,4 @@ start-watcher.vbs
 *.vbs
 scan-inbox/
 batch-scan.py
+.env
