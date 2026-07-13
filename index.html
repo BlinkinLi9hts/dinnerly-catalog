@@ -681,14 +681,13 @@ function CropModal({imageDataUrl, onConfirm, onRetake}) {
   );
 }
 
-// -- Scan Screen (fast flow: camera -> crop -> camera -> parse -> review)
+// -- Scan Screen (fast flow: viewfinder -> capture -> camera -> parse -> review)
 function ScanScreen({onBack,onSaved}) {
   const [stage,setStage]=useState("front");
   const [front,setFront]=useState(null);
   const [back,setBack]=useState(null);
   const [recipe,setRecipe]=useState(null);
   const [error,setError]=useState(null);
-  const frontInputRef=useRef();
   const backInputRef=useRef();
 
   const readFile=file=>new Promise((res,rej)=>{
@@ -698,34 +697,12 @@ function ScanScreen({onBack,onSaved}) {
   });
 
   useEffect(()=>{
-    if(stage==="front") setTimeout(()=>frontInputRef.current&&frontInputRef.current.click(),300);
-  },[stage]);
-
-  useEffect(()=>{
     if(stage==="back") setTimeout(()=>backInputRef.current&&backInputRef.current.click(),300);
   },[stage]);
 
-  const handleFrontChosen=async file=>{
-    const data=await readFile(file);
-    // Auto-crop: Dinnerly cards have a consistent layout.
-    // Food photo occupies roughly y=10%..75% of card height, full width.
-    // We crop to that region and output 16:9 (1200x675).
-    const autoCrop=dataUrl=>new Promise(res=>{
-      const img=new Image();
-      img.onload=()=>{
-        const OUT_W=1200, OUT_H=675;
-        const srcX=Math.round(img.width*0.04);
-        const srcY=Math.round(img.height*0.25);
-        const srcW=Math.round(img.width*0.92);
-        const srcH=Math.round(img.height*0.40); // 25% to 65% = 40% of height
-        const c=document.createElement("canvas"); c.width=OUT_W; c.height=OUT_H;
-        c.getContext("2d").drawImage(img,srcX,srcY,srcW,srcH,0,0,OUT_W,OUT_H);
-        res(c.toDataURL("image/jpeg",0.82));
-      };
-      img.src=dataUrl;
-    });
-    const croppedDataUrl=await autoCrop(data.dataUrl);
-    setFront({...data,croppedDataUrl});
+  const handleFrontCaptured=data=>{
+    // data.croppedDataUrl = zone crop, data.base64 = full frame for Claude
+    setFront(data);
     setStage("back");
   };
 
