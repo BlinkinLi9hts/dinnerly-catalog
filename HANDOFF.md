@@ -11,7 +11,7 @@ A personal recipe catalog app for Brian's physical Dinnerly recipe card collecti
 **Live URL:** https://dinnerly-catalog.pages.dev
 **Repo:** https://github.com/BlinkinLi9hts/dinnerly-catalog
 **Local file:** C:\Projects\dinnerly-catalog\index.html
-**Current version:** v2.7 (live — clean rewrite, all features verified)
+**Current version:** v2.8 (live — scrollable recipe list, alpha index bar)
 
 ---
 
@@ -211,6 +211,7 @@ C = { ink:"#1C1C1E", paper:"#F5F2ED", card:"#FFFFFF", sage:"#4A7C59",
 | 6 | Seed recipe (Macaroni Bolognese id:1720000000000) still in code | ⏳ Remove once real cards scanned |
 | 7 | "Heard:" debug display still in voice checklist | ⏳ Remove once voice confirmed working |
 | 8 | v2.7 clean rewrite — full file written in one pass, deployed and verified | ✅ Done |
+| 9 | v2.8 recipe list scroll + alpha bar — deployed manually (filesystem MCP write hung) | ✅ Done |
 
 ---
 
@@ -236,3 +237,4 @@ C = { ink:"#1C1C1E", paper:"#F5F2ED", card:"#FFFFFF", sage:"#4A7C59",
 - v2.4: **Duplicate detection** — fuzzy title matching (≥60% word overlap) checks for duplicates on save; side-by-side modal shows existing vs new scan with date/steps/ingredients; options to keep existing, replace, or save both.
 - v2.5–2.6: **Auto-crop & viewfinder experiments** — attempted fixed-percentage auto-crop and live getUserMedia viewfinder for front card; both abandoned due to card distance variability and UX friction. File became corrupted from incremental edits.
 - v2.7: **Clean rewrite** — full file rewritten via Cowork; restores simple scan flow (front file input → CropModal → back file input → parse → review); removes ViewfinderCapture entirely; all v2.4 features preserved.
+- v2.8: **Scrollable recipe list with alpha index** — RecipeListScreen now height-constrained with overflowY scroll; recipes sorted alphabetically and grouped by first letter with section headers; A–Z jump bar on right edge (touch drag supported) appears when 5+ letters present; recipe count shown in header.
