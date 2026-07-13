@@ -632,9 +632,9 @@ function ScanScreen({onBack,onSaved}) {
       img.onload=()=>{
         const OUT_W=1200, OUT_H=675;
         const srcX=Math.round(img.width*0.04);
-        const srcY=Math.round(img.height*0.15);
+        const srcY=Math.round(img.height*0.25);
         const srcW=Math.round(img.width*0.92);
-        const srcH=Math.round(img.height*0.55); // 15% to 70% = 55% of height
+        const srcH=Math.round(img.height*0.40); // 25% to 65% = 40% of height
         const c=document.createElement("canvas"); c.width=OUT_W; c.height=OUT_H;
         c.getContext("2d").drawImage(img,srcX,srcY,srcW,srcH,0,0,OUT_W,OUT_H);
         res(c.toDataURL("image/jpeg",0.82));
