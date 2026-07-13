@@ -1839,7 +1839,8 @@ function App() {
   if(screen==="favorites") return <FavoritesScreen recipes={recipes} onBack={()=>setScreen("home")} onSelect={r=>goToRecipe(r,false)} onDelete={handleDelete} onToggleFavorite={handleToggleFavorite}/>;
   if(screen==="catalog") return <>{pickBanner}<CategoryScreen recipes={recipes} onBack={()=>{if(plannerPickDay){setPlannerPickDay(null);setScreen("planner");}else{setScreen("home");}}} onSelectCategory={id=>{setActiveCategory(id);setScreen("recipelist");}} onAdd={()=>setScreen("scan")}/></>;
   if(screen==="planner") return <PlannerScreen recipes={recipes} schedule={schedule} onUpdateSchedule={handleUpdateSchedule} onBack={()=>setScreen("home")} onViewRecipe={r=>goToRecipe(r,true)} onPickDay={day=>{setPlannerPickDay(day);setActiveCategory(null);setScreen("catalog");}}/>;
-  if(screen==="shopping") return <ShoppingListScreen recipes={recipes} schedule={schedule} onBack={()=>setScreen("home")}/>;
+  if(screen==="shopping") return <ShoppingListScreen recipes={recipes} schedule={schedule} onBack={()=>setScreen("home")}/>
+  if(screen==="battle") return <BattleScreen recipes={recipes} onBack={()=>setScreen("home")} onConfirm={async s=>{await handleUpdateSchedule(s);setScreen("planner");}}/>;
 
   return (
     <>
