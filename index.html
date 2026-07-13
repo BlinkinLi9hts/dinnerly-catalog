@@ -609,10 +609,11 @@ function RecipeListScreen({recipes,categoryId,onBack,onSelect,onDelete,onAdd}) {
   );
 }
 
-function LibraryCard({recipe,onSelect,onDelete}) {
+function LibraryCard({recipe,onSelect,onDelete,onToggleFavorite}) {
   return (
-    <div style={{background:C.card,borderRadius:12,overflow:"hidden",border:`1.5px solid ${C.border}`,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+    <div style={{background:C.card,borderRadius:12,overflow:"hidden",border:`1.5px solid ${recipe.favorite?"#e8a0a0":C.border}`,boxShadow:"0 1px 4px rgba(0,0,0,0.05)",position:"relative"}}>
       {recipe.frontImage?<img src={recipe.frontImage} alt={recipe.title} style={{width:"100%",height:160,objectFit:"contain",background:"#1a1a1a"}}/>:<div style={{height:8,background:C.sage}}/>}
+      {onToggleFavorite&&<button onClick={e=>{e.stopPropagation();onToggleFavorite(recipe.id);}} style={{position:"absolute",top:8,right:8,background:"rgba(0,0,0,0.45)",border:"none",borderRadius:"50%",width:32,height:32,fontSize:17,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)",lineHeight:1}}>{recipe.favorite?"\u2764\ufe0f":"\u🤍"}</button>}
       <div style={{padding:"16px 16px 14px"}}>
         <div style={{fontSize:16,fontWeight:700,color:C.ink,marginBottom:6,lineHeight:1.3}}>{recipe.title}</div>
         <div style={{display:"flex",gap:12,fontSize:12,color:C.muted,marginBottom:14,flexWrap:"wrap"}}>
