@@ -96,7 +96,7 @@ def fuzzy_match(title_a, title_b):
     if not wa or not wb:
         return False
     overlap = len(wa & wb)
-    return overlap / min(len(wa), len(wb)) >= 0.6
+    return overlap / max(len(wa), len(wb)) >= 0.75
 
 
 def call_claude(front_b64, back_b64):
