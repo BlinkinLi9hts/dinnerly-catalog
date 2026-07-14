@@ -123,26 +123,21 @@ POST /api/schedule  → saves schedule object to KV (requires X-Dinnerly-Secret 
 - Requires: Python 3.x, `pdf2image`, `pillow`, `requests`, Poppler on PATH
 - Keys in `.env`: `ANTHROPIC_API_KEY`, `DINNERLY_SECRET`
 - Auto-crops front to 16:9 centered; sends each pair to Claude API
-- Duplicate detection against existing KV recipes (≥60% title word overlap)
+- Duplicate detection: fuzzy title match using `max` denominator at ≥0.75 threshold + culinary stop words
 - Checkpoints to KV every 10 cards; pauses on failures (skip/retry/quit)
 - Moves processed PDFs to `scan-inbox\done\` on completion
 - Log written to `scan-inbox\scan-log.txt`
 - Run: `cd C:\Projects\dinnerly-catalog` then `python batch-scan.py`
-- **STATUS: Ready to use — awaiting first scan session**
-
-### Scanning process:
-1. Load all front-side cards into sheet feeder → scan → save as `scan-inbox\fronts.pdf`
-2. Flip physical stack (same order!) → scan all backs → save as `scan-inbox\backs.pdf`
-3. `python batch-scan.py`
+- **STATUS: First batch complete — 110 recipes in KV (102 cards scanned, ~12 legitimate Dinnerly duplicates)**
 
 ### Duplicate Detection
-- Fuzzy title match (≥60% word overlap) on save
+- Fuzzy title match (≥75% word overlap using max denominator, culinary stop words excluded) on save
 - Side-by-side modal: keep existing / replace / save both
 
 ### Category System
 - 9 categories: Beef 🥩 Chicken 🍗 Pork 🐷 Seafood 🦐 Lamb 🐑 Pasta 🍝 Veggie 🌱 Eggs 🥚 Other 🍽️
 - Auto-detected from title keywords; manual override via "Change" button on Detail screen
-- CategoryScreen shows only populated categories with recipe counts
+- CategoryScreen: search box — when query active, bypasses category tiles and shows all matching recipes directly as cards
 - RecipeListScreen: alphabetical with letter section headers, A–Z jump bar (≥5 letters), live search
 
 ### Detail Screen
@@ -258,7 +253,6 @@ C = { ink:"#1C1C1E", paper:"#F5F2ED", card:"#FFFFFF", sage:"#4A7C59",
 | # | Issue | Status |
 |---|-------|--------|
 | 1 | Remove "Heard:" debug display from IngredientChecklist once voice fully validated | ⏳ Pending |
-| 2 | Run first batch scan session (223 cards remaining) | ⏳ Pending |
 
 ---
 
@@ -288,6 +282,6 @@ C = { ink:"#1C1C1E", paper:"#F5F2ED", card:"#FFFFFF", sage:"#4A7C59",
 - v2.11: Favorites — heart toggle on cards and Detail; FavoritesScreen; Home hero card with count badge
 - v2.12: Nutrition bar on Detail screen — Calories/Protein/Carbs/Fat, scales with serving scaler, hidden if no data
 - v2.13: Aisle-grouped Shopping List — 7 grocery aisles, collapsible sections, alphabetical within aisle, green completion state, separate Pantry Staples section; SVG checkmarks replacing `&checkmark;`; stopPropagation on item rows fixing Android back-nav bug
-- v2.14: Pantry Staples starts collapsed; independent collapse state from Ingredients to Buy; warm tint differentiation (headers #F0EDE8, rows #FAF8F5, borders #D8D2C8); section label updated to "🧂 Pantry Staples — already at home"
-- v2.15: Voice overhaul — expanded phrase lists; "how much X" quantity query; ingredient word match threshold lowered to >2 chars; stopped flag fixes ghost restarts; stopSpeaking on checklist cleanup prevents audio bleed into Cook Mode; seed recipe removed; batch-scan.py desktop scanner built
-- v2.16: Recipe Battle (⚔️) — head-to-head recipe matchups, results assigned to weekly planner; BattleScreen SVG checkmark fix (unicode escape renders literally in JSX strings)
+- v2.14: Pantry Staples starts collapsed; independent collapse state from Ingredients to Buy; warm tint differentiation; section label updated
+- v2.15: Voice overhaul — expanded phrase lists; "how much X" quantity query; ingredient word match threshold lowered; stopped flag fixes; batch-scan.py desktop scanner built
+- v2.16: Recipe Battle (⚔️); CategoryScreen global search (bypasses category tiles, shows recipe cards directly); batch scan complete (110 recipes in KV); fuzzy dupe detection tuned (max denominator, 0.75 threshold, culinary stop words)
