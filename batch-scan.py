@@ -89,9 +89,13 @@ def autocrop_16_9(img):
 
 def fuzzy_match(title_a, title_b):
     import re
+    STOP = {"with","and","the","for","our","your","homemade","easy","quick","best",
+            "style","baked","grilled","roasted","pan","fried","seared","crispy",
+            "creamy","cheesy","spicy","classic","fresh","slow","sheet","skillet",
+            "over","from","into","bowl","sauce","topped","loaded"}
     def words(s):
         s = re.sub(r"[^a-z0-9\s]", "", s.lower()).strip()
-        return {w for w in s.split() if len(w) > 2}
+        return {w for w in s.split() if len(w) > 2 and w not in STOP}
     wa, wb = words(title_a), words(title_b)
     if not wa or not wb:
         return False
