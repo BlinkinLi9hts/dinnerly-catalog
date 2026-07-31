@@ -17,14 +17,15 @@ A personal recipe catalog app for Brian's physical Dinnerly recipe card collecti
 
 ---
 
-## Auto-Deploy Pipeline
+## Auto-Deploy Pipeline (updated 2026-07-30)
 1. Claude writes directly to `C:\Projects\dinnerly-catalog\index.html`
-2. `dinnerly-watch.ps1` detects change (3s debounce), auto-commits and pushes to GitHub
+2. The **Master Projects Watcher** (`C:\Projects\_watcher`, watches every repo under C:\Projects) detects the change and, after ~8s of quiet, auto-commits (`auto: <timestamp>`) and pushes to GitHub
 3. Cloudflare Pages auto-deploys (~30 seconds)
 4. Live at dinnerly-catalog.pages.dev
 
-**Watcher launch:** double-click `start-watcher.vbs` → hidden PowerShell, green "D" tray icon
+**Watcher:** one shared watcher for every C:\Projects repo, launched at logon from the Startup folder (the old per-repo `dinnerly-watch.ps1` / `start-watcher.vbs` green "D" tray icon is retired). Per-repo tray icon + repo-named toast; log at `C:\Projects\_watcher\master-watch.log`. Guards: skips during a manual git op (merge/rebase/lock); unstages + warns on any file >25MB; recovers on buffer overflow.
 **.gitignore:** excludes `*.ps1`, `*.vbs`, `scan-inbox/`, `batch-scan.py`, `.env`
+**Shared standards:** root `CLAUDE.md` imports `C:\Projects\_shared\Claude.md`.
 
 ---
 
